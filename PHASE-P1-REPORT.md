@@ -141,6 +141,17 @@ _No references to any real custody firm or real person were found._
 
 I recommend **Minor 1** be resolved before P2 begins (it's the only finding that would break `main`'s green bar once contract tests exist) and **Minor 4** soon after — but I've left the working tree untouched pending your decision, as the gate requires.
 
+### Post-review decisions (pre-P2 cleanup — applied)
+
+Owner decisions on the findings above, executed as a single cleanup commit on `main`:
+**Minor 1 fixed** (route `assets` enum aligned to the spec → 400 at validation; D18).
+**Minor 4 fixed** (idempotent replay re-asserts tenant ownership, 404 on mismatch; D19 —
+P2's authz matrix must include an idempotency-replay cross-tenant case).
+**Nit 1 applied** ("wall-clock metadata, not domain time" comments at the three sites).
+**Minors 2/3/5 + Nits 2–4 deferred** with one-liners in `docs/DEFERRED.md`.
+Typecheck + smoke re-run appended to `docs/evidence/p1.txt`; `defects-planted` rebased and
+`v1-defects` re-anchored; all seven repros re-verified post-cleanup.
+
 ## 6. Commands for you to run and poke the result
 
 ```

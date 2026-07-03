@@ -56,8 +56,19 @@ export async function createWithdrawal(
   },
 ): Promise<{ tx: Transaction; created: boolean }> {
   if (input.idempotencyKey) {
-    const existing = await prisma.transaction.findUnique({ where: { idempotencyKey: input.idempotencyKey } });
-    if (existing) return { tx: existing, created: false };
+    const existing = await prisma.transaction.findUnique({
+      where: { idempotencyKey: input.idempotencyKey },
+      include: { wallet: { include: { account: true } } },
+    });
+    if (existing) {
+      // Tenant scoping applies to idempotent replays too: a CLIENT key may only
+      // retrieve its own client's withdrawal by key — 404 on mismatch, matching
+      // the platform-wide 404-not-403 discipline (D19).
+      if (input.actor.role === 'CLIENT' && existing.wallet.account.clientId !== input.actor.clientId) {
+        throw notFound('Withdrawal');
+      }
+      return { tx: existing, created: false };
+    }
   }
 
   const wallet = await prisma.wallet.findUnique({ where: { id: input.walletId }, include: { account: true } });

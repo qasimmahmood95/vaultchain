@@ -32,6 +32,7 @@ export async function emitEvent(db: Db, event: string, payload: Record<string, u
         attempts: delayed ? 0 : 1,
         status: delayed ? 'PENDING' : 'DELIVERED',
         dueAtSimMs: (now + delayMs).toString(),
+        // deliveredAt is wall-clock metadata, not domain time — all gating uses the sim clock.
         ...(delayed ? {} : { deliveredAt: new Date() }),
       },
     });

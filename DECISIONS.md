@@ -47,3 +47,13 @@ record it here, continue. None of these change the API contract in `openapi/vaul
   minor, 2 approvals, maker≠checker) so no account can exist without maker-checker
   controls, and the pure-API smoke can exercise dual approval without touching the DB.
   There is deliberately no policy-management endpoint in P1 (§A.4 doesn't list one).
+- **D18 — Route schemas mirror the OpenAPI contract; the spec is the source of truth.**
+  The `POST /accounts` `assets` enum was missing from the route schema (unknown symbols
+  reached the handler and 404'd instead of rejecting 400 at validation). Caught by the
+  P1 fresh-eyes review **before the P2 contract suite existed** — exactly the drift class
+  the contract layer is built to catch, and now part of that layer's rationale: the Zod
+  schemas re-encode the spec independently so this divergence fails a test, not a review.
+- **D19 — Idempotent replays are tenant-scoped.** `POST /withdrawals` with a reused
+  `idempotencyKey` re-asserts wallet ownership for CLIENT callers (404 on mismatch)
+  instead of returning another tenant's withdrawal by key. **P2's authz matrix must
+  include an idempotency-replay cross-tenant case** so this stays pinned by a test.

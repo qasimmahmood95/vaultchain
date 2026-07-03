@@ -23,7 +23,9 @@ const createAccountSchema = {
       clientId: { type: 'string' },
       label: { type: 'string', minLength: 1 },
       segregationModel: { type: 'string', enum: ['SEGREGATED', 'OMNIBUS'] },
-      assets: { type: 'array', items: { type: 'string' }, minItems: 1 },
+      // Enum mirrors openapi/vaultchain.yaml (the source of truth): unknown
+      // symbols reject with 400 at validation, not 404 in the handler (D18).
+      assets: { type: 'array', items: { type: 'string', enum: ['BTC', 'ETH', 'GBPX'] }, minItems: 1 },
     },
   },
 } as const;

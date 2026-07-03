@@ -51,6 +51,7 @@ export async function resolveHoldCore(
 
     const updated = await db.complianceHold.update({
       where: { id: hold.id },
+      // resolvedAt is wall-clock metadata, not domain time — all gating uses the sim clock.
       data: { state: input.decision, resolvedBy: input.actor.apiKeyId, resolvedAt: new Date() },
     });
     await writeAudit(db, {

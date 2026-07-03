@@ -147,6 +147,7 @@ export async function replayWebhook(
   if (!delivery) throw notFound('Webhook delivery');
   const updated = await prisma.webhookDelivery.update({
     where: { id: delivery.id },
+    // deliveredAt is wall-clock metadata, not domain time — all gating uses the sim clock.
     data: { attempts: { increment: 1 }, status: 'DELIVERED', deliveredAt: new Date() },
   });
   await writeAudit(prisma, {

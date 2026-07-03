@@ -67,3 +67,21 @@ CORRECT        BUG-005: operator release -> status=403
 CORRECT        BUG-006: release audit actions=[HOLD_OPENED,HOLD_RELEASED]
 CORRECT        BUG-007: balance before=1000.00, after replay=1000.00 (credited once)
 contrast exit: 0 (0 = all seven correct on main)
+
+=== PRE-P2 CLEANUP (main) — review findings Minor 1, Minor 4, Nit 1 ===
+captured: 2026-07-03T22:10:16Z
+
+$ pnpm typecheck
+$ tsc --noEmit
+exit: 0
+
+$ pnpm smoke
+  [PASS] audit trail contains TRANSACTION_CONFIRMED
+    [PASS] reconciliation invariant holds
+== SMOKE PASSED ==
+
+$ fix probes (Minor 1 asset-enum -> 400; Minor 4 cross-tenant idempotency replay -> 404)
+Minor1: POST /accounts assets=[DOGE] -> 400 (expected 400, was 404 pre-fix)
+  wd-create status=201 id=cmr5hlp1t000qoy5cq9lnb3vb state=PENDING_APPROVAL title=
+Minor4: cross-tenant CLIENT replay -> 404 (expected 404, was 200 pre-fix)
+probe exit: 0 (0 = both fixes behave as specified)
