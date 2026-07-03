@@ -1,0 +1,9 @@
+node_modules
+.git
+*.db
+*.db-journal
+prisma/*.db
+test-results
+playwright-report
+docs/evidence
+BUGS.md

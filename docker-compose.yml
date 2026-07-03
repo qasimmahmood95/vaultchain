@@ -1,0 +1,15 @@
+# One-command boot (PRD §D.1): docker compose up -d
+# FICTIONAL platform — the SQLite DB lives inside the container; state resets
+# with the container. That is a feature for a system-under-test.
+services:
+  vaultchain:
+    build: .
+    ports:
+      - '3000:3000'
+    environment:
+      VAULTCHAIN_ENV: dev
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://localhost:3000/health']
+      interval: 5s
+      timeout: 3s
+      retries: 12

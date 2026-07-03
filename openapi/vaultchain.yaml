@@ -1,0 +1,1107 @@
+openapi: 3.1.0
+info:
+  title: VaultChain API
+  version: 0.1.0
+  description: |
+    **FICTIONAL** mock digital-asset custody platform — the system-under-test for a
+    showcase test architecture. No real blockchain, keys, or money. This spec is the
+    contract (source of truth): the P2 contract-test layer independently re-encodes it
+    as Zod schemas.
+
+    Auth: `X-Api-Key` header. Roles: `CLIENT` (tenant-bound), `OPERATOR`,
+    `COMPLIANCE_OFFICER`, `ADMIN`. Errors are RFC 9457 `application/problem+json`.
+    Amounts are decimal strings; `*Minor` fields are integer minor-unit strings
+    interpreted with the asset's `decimals`.
+servers:
+  - url: http://localhost:3000
+security:
+  - apiKey: []
+tags:
+  - name: core
+  - name: clients
+  - name: accounts
+  - name: deposits
+  - name: withdrawals
+  - name: holds
+  - name: audit
+  - name: webhooks
+  - name: simulator
+    description: Dev/test control plane. Absent when VAULTCHAIN_ENV=production.
+
+paths:
+  /health:
+    get:
+      tags: [core]
+      security: []
+      summary: Liveness
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status: { type: string, const: ok }
+
+  /me:
+    get:
+      tags: [core]
+      summary: Resolve caller role and client binding
+      responses:
+        '200':
+          description: Caller identity
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [apiKeyId, role, clientId]
+                properties:
+                  apiKeyId: { type: string }
+                  role: { $ref: '#/components/schemas/Role' }
+                  clientId: { type: [string, 'null'] }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /clients:
+    post:
+      tags: [clients]
+      summary: Create a client (ADMIN)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [legalName, type, jurisdiction]
+              additionalProperties: false
+              properties:
+                legalName: { type: string, minLength: 1 }
+                type: { type: string, enum: [INDIVIDUAL, INSTITUTION] }
+                jurisdiction: { type: string, minLength: 2 }
+                vaspId: { type: string }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Client' }
+        '400': { $ref: '#/components/responses/Validation' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    get:
+      tags: [clients]
+      summary: List clients (CLIENT sees only itself)
+      parameters:
+        - $ref: '#/components/parameters/cursor'
+        - $ref: '#/components/parameters/limit'
+      responses:
+        '200':
+          description: Page of clients
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, nextCursor]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/Client' }
+                  nextCursor: { type: [string, 'null'] }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /clients/{id}:
+    get:
+      tags: [clients]
+      summary: Get a client (cross-tenant reads 404)
+      parameters: [{ $ref: '#/components/parameters/id' }]
+      responses:
+        '200':
+          description: Client
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Client' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /accounts:
+    post:
+      tags: [accounts]
+      summary: Create an account with one wallet per listed asset (OPERATOR/ADMIN)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [clientId, label, segregationModel, assets]
+              additionalProperties: false
+              properties:
+                clientId: { type: string }
+                label: { type: string, minLength: 1 }
+                segregationModel: { type: string, enum: [SEGREGATED, OMNIBUS] }
+                assets:
+                  type: array
+                  minItems: 1
+                  items: { type: string, enum: [BTC, ETH, GBPX] }
+      responses:
+        '201':
+          description: Created (wallets embedded)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AccountWithWallets' }
+        '400': { $ref: '#/components/responses/Validation' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /accounts/{id}:
+    get:
+      tags: [accounts]
+      summary: Get an account (tenant-scoped; cross-tenant reads 404)
+      parameters: [{ $ref: '#/components/parameters/id' }]
+      responses:
+        '200':
+          description: Account
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Account' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /accounts/{id}/wallets:
+    get:
+      tags: [accounts]
+      summary: List an account's wallets with balances
+      parameters: [{ $ref: '#/components/parameters/id' }]
+      responses:
+        '200':
+          description: Wallets
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/Wallet' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /wallets/{id}:
+    get:
+      tags: [accounts]
+      summary: Get a wallet and its balance
+      parameters: [{ $ref: '#/components/parameters/id' }]
+      responses:
+        '200':
+          description: Wallet
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Wallet' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /accounts/{id}/allowlist:
+    post:
+      tags: [accounts]
+      summary: Allowlist a withdrawal address (starts cooling-off) (OPERATOR/ADMIN)
+      parameters: [{ $ref: '#/components/parameters/id' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [assetSymbol, address, label]
+              additionalProperties: false
+              properties:
+                assetSymbol: { type: string, enum: [BTC, ETH, GBPX] }
+                address: { type: string, minLength: 4 }
+                label: { type: string, minLength: 1 }
+      responses:
+        '201':
+          description: Entry created in PENDING (cooling-off) state
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AllowlistedAddress' }
+        '400': { $ref: '#/components/responses/Validation' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    get:
+      tags: [accounts]
+      summary: List allowlisted addresses with effective status
+      parameters: [{ $ref: '#/components/parameters/id' }]
+      responses:
+        '200':
+          description: Entries
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/AllowlistedAddress' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /accounts/{id}/allowlist/{addrId}:
+    delete:
+      tags: [accounts]
+      summary: Remove an allowlisted address (OPERATOR/ADMIN)
+      parameters:
+        - $ref: '#/components/parameters/id'
+        - name: addrId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '204': { description: Removed }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /wallets/{id}/deposits/simulate:
+    post:
+      tags: [deposits]
+      summary: Register an inbound deposit (sim only) (OPERATOR/ADMIN)
+      parameters: [{ $ref: '#/components/parameters/id' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [amount, chainTxRef]
+              additionalProperties: false
+              properties:
+                amount: { type: string, pattern: '^\d+(\.\d+)?$' }
+                chainTxRef: { type: string, minLength: 4 }
+      responses:
+        '201':
+          description: Deposit registered (PENDING_CONFIRMATION)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Transaction' }
+        '400': { $ref: '#/components/responses/Validation' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+
+  /withdrawals:
+    post:
+      tags: [withdrawals]
+      summary: Create a withdrawal (allowlist-gated; idempotency-key aware)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [walletId, amount, counterpartyAddress]
+              additionalProperties: false
+              properties:
+                walletId: { type: string }
+                amount: { type: string, pattern: '^\d+(\.\d+)?$' }
+                counterpartyAddress: { type: string, minLength: 4 }
+                counterpartyVaspId: { type: string, description: Set for cross-VASP transfers (Travel Rule) }
+                idempotencyKey: { type: string, minLength: 8 }
+      responses:
+        '201':
+          description: Created (PENDING_APPROVAL)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Transaction' }
+        '200':
+          description: Idempotent replay — existing withdrawal returned
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Transaction' }
+        '400': { $ref: '#/components/responses/Validation' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+    get:
+      tags: [withdrawals]
+      summary: List/search withdrawals (CLIENT sees own only)
+      parameters:
+        - $ref: '#/components/parameters/cursor'
+        - $ref: '#/components/parameters/limit'
+        - name: state
+          in: query
+          schema: { type: string }
+        - name: walletId
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: Page of withdrawals
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, nextCursor]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/Transaction' }
+                  nextCursor: { type: [string, 'null'] }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /withdrawals/{id}:
+    get:
+      tags: [withdrawals]
+      summary: Get a withdrawal with approvals and Travel Rule records
+      parameters: [{ $ref: '#/components/parameters/id' }]
+      responses:
+        '200':
+          description: Withdrawal detail
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WithdrawalDetail' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /withdrawals/{id}/approvals:
+    post:
+      tags: [withdrawals]
+      summary: Approve or reject (maker-checker enforced) (OPERATOR/ADMIN)
+      parameters: [{ $ref: '#/components/parameters/id' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [decision]
+              additionalProperties: false
+              properties:
+                decision: { type: string, enum: [APPROVE, REJECT] }
+      responses:
+        '201':
+          description: Decision recorded; state reflects any progression
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Transaction' }
+        '400': { $ref: '#/components/responses/Validation' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /withdrawals/{id}/cancel:
+    post:
+      tags: [withdrawals]
+      summary: Cancel a PENDING_APPROVAL withdrawal (own, for CLIENT keys)
+      parameters: [{ $ref: '#/components/parameters/id' }]
+      responses:
+        '200':
+          description: Cancelled
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Transaction' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /withdrawals/{id}/travel-rule:
+    post:
+      tags: [withdrawals]
+      summary: Attach originator/beneficiary Travel Rule payload (OPERATOR/COMPLIANCE_OFFICER/ADMIN)
+      parameters: [{ $ref: '#/components/parameters/id' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [originator, beneficiary]
+              additionalProperties: false
+              properties:
+                originator:
+                  type: object
+                  required: [name, accountRef]
+                  additionalProperties: false
+                  properties:
+                    name: { type: string, minLength: 1 }
+                    accountRef: { type: string, minLength: 1 }
+                    physicalAddress: { type: string, minLength: 1 }
+                    dateOfBirth: { type: string, minLength: 1 }
+                  description: physicalAddress OR dateOfBirth is required (enforced by the service)
+                beneficiary:
+                  type: object
+                  required: [name, accountRef]
+                  additionalProperties: false
+                  properties:
+                    name: { type: string, minLength: 1 }
+                    accountRef: { type: string, minLength: 1 }
+      responses:
+        '201':
+          description: Records attached; state reflects any progression
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Transaction' }
+        '400': { $ref: '#/components/responses/Validation' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+
+  /holds:
+    get:
+      tags: [holds]
+      summary: Screening hold queue (COMPLIANCE_OFFICER/OPERATOR/ADMIN)
+      parameters:
+        - $ref: '#/components/parameters/cursor'
+        - $ref: '#/components/parameters/limit'
+        - name: state
+          in: query
+          schema: { type: string, enum: [OPEN, RELEASED, REJECTED] }
+      responses:
+        '200':
+          description: Page of holds
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, nextCursor]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/ComplianceHold' }
+                  nextCursor: { type: [string, 'null'] }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /holds/{id}:
+    get:
+      tags: [holds]
+      summary: Get a hold with its transaction
+      parameters: [{ $ref: '#/components/parameters/id' }]
+      responses:
+        '200':
+          description: Hold
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ComplianceHold' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /holds/{id}/release:
+    post:
+      tags: [holds]
+      summary: Release a hold — COMPLIANCE_OFFICER only (segregation of duties)
+      parameters: [{ $ref: '#/components/parameters/id' }]
+      responses:
+        '200':
+          description: Released; underlying transaction resumes
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ComplianceHold' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /holds/{id}/reject:
+    post:
+      tags: [holds]
+      summary: Reject a hold — COMPLIANCE_OFFICER only; transaction is rejected
+      parameters: [{ $ref: '#/components/parameters/id' }]
+      responses:
+        '200':
+          description: Rejected
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ComplianceHold' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /audit:
+    get:
+      tags: [audit]
+      summary: Query the append-only audit log (COMPLIANCE_OFFICER/ADMIN)
+      parameters:
+        - $ref: '#/components/parameters/cursor'
+        - $ref: '#/components/parameters/limit'
+        - name: entityType
+          in: query
+          schema: { type: string }
+        - name: entityId
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: Page of audit entries
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, nextCursor]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/AuditLogEntry' }
+                  nextCursor: { type: [string, 'null'] }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /webhooks/subscriptions:
+    post:
+      tags: [webhooks]
+      summary: Create a webhook subscription (OPERATOR/ADMIN)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [url, secret, events]
+              additionalProperties: false
+              properties:
+                url: { type: string, minLength: 8 }
+                secret: { type: string, minLength: 8 }
+                events:
+                  type: array
+                  minItems: 1
+                  items:
+                    type: string
+                    enum: [deposit.detected, deposit.credited, withdrawal.approved, withdrawal.broadcast, withdrawal.confirmed, hold.opened, hold.released]
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WebhookSubscription' }
+        '400': { $ref: '#/components/responses/Validation' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    get:
+      tags: [webhooks]
+      summary: List subscriptions (OPERATOR/ADMIN)
+      responses:
+        '200':
+          description: Subscriptions
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/WebhookSubscription' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /webhooks/deliveries:
+    get:
+      tags: [webhooks]
+      summary: List recorded deliveries (OPERATOR/ADMIN)
+      parameters:
+        - name: event
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: Deliveries (signed, locally recorded)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/WebhookDelivery' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /simulator/state:
+    get:
+      tags: [simulator]
+      summary: Current chain/clock/fault state (ADMIN)
+      responses:
+        '200':
+          description: Chain state
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ChainState' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /simulator/chain/advance:
+    post:
+      tags: [simulator]
+      summary: Advance block height (and, unless frozen, the sim clock) (ADMIN)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [blocks]
+              additionalProperties: false
+              properties:
+                blocks: { type: integer, minimum: 1, maximum: 10000 }
+      responses:
+        '200':
+          description: Advanced; settled transactions counted
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [blockHeight, simClockMs, settled]
+                properties:
+                  blockHeight: { type: integer }
+                  simClockMs: { type: string }
+                  settled: { type: integer }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /simulator/clock/set:
+    post:
+      tags: [simulator]
+      summary: Set the sim clock (ms) (ADMIN)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ms]
+              additionalProperties: false
+              properties:
+                ms: { type: string, pattern: '^\d+$' }
+      responses:
+        '200':
+          description: Chain state after set
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ChainState' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /simulator/clock/freeze:
+    post:
+      tags: [simulator]
+      summary: Freeze/unfreeze the sim clock (ADMIN)
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                frozen: { type: boolean, default: true }
+      responses:
+        '200':
+          description: Chain state after change
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ChainState' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /simulator/tx/{id}/force:
+    post:
+      tags: [simulator]
+      summary: Force a transaction outcome; failed debited withdrawals are refunded (ADMIN)
+      parameters: [{ $ref: '#/components/parameters/id' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [outcome]
+              additionalProperties: false
+              properties:
+                outcome: { type: string, enum: [CONFIRMED, FAILED] }
+      responses:
+        '200':
+          description: Transaction after forcing
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TransactionRaw' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /simulator/screening/next:
+    post:
+      tags: [simulator]
+      summary: Queue the next screening decision (consumed once) (ADMIN)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [outcome]
+              additionalProperties: false
+              properties:
+                outcome: { type: string, enum: [CLEAN, FLAG] }
+      responses:
+        '200':
+          description: Queued
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [queued]
+                properties:
+                  queued: { type: string, enum: [CLEAN, FLAG] }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /simulator/webhooks/{id}/replay:
+    post:
+      tags: [simulator]
+      summary: Re-deliver a webhook; deposit events re-enter the credit handler (ADMIN)
+      parameters: [{ $ref: '#/components/parameters/id' }]
+      responses:
+        '200':
+          description: Replay result (creditResult null for non-deposit events)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [delivery, creditResult]
+                properties:
+                  delivery: { $ref: '#/components/schemas/WebhookDelivery' }
+                  creditResult:
+                    oneOf:
+                      - type: 'null'
+                      - type: object
+                        required: [credited, reason]
+                        properties:
+                          credited: { type: boolean }
+                          reason: { type: string, enum: [credited, already-credited, not-creditable] }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /simulator/webhooks/delay:
+    post:
+      tags: [simulator]
+      summary: Delay all webhook deliveries by N sim-clock ms (ADMIN)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ms]
+              additionalProperties: false
+              properties:
+                ms: { type: string, pattern: '^\d+$' }
+      responses:
+        '200':
+          description: Set
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [webhookDelayMs]
+                properties:
+                  webhookDelayMs: { type: string }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /simulator/reset:
+    post:
+      tags: [simulator]
+      summary: Reset chain/clock/fault state to defaults — not the database (ADMIN)
+      responses:
+        '200':
+          description: Chain state after reset
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ChainState' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+components:
+  securitySchemes:
+    apiKey:
+      type: apiKey
+      in: header
+      name: X-Api-Key
+
+  parameters:
+    id:
+      name: id
+      in: path
+      required: true
+      schema: { type: string }
+    cursor:
+      name: cursor
+      in: query
+      schema: { type: string }
+    limit:
+      name: limit
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+
+  responses:
+    Unauthorized:
+      description: Missing or invalid X-Api-Key
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    Forbidden:
+      description: Role not permitted
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    NotFound:
+      description: Not found (including cross-tenant reads)
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    Conflict:
+      description: State conflict (e.g. approvals closed, duplicate decision)
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    Unprocessable:
+      description: Semantically invalid (amount scale, allowlist, funds, Travel Rule payload)
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    Validation:
+      description: Request-shape validation failure
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+
+  schemas:
+    Role:
+      type: string
+      enum: [CLIENT, OPERATOR, COMPLIANCE_OFFICER, ADMIN]
+
+    Problem:
+      type: object
+      description: RFC 9457 problem details
+      required: [type, title, status]
+      properties:
+        type: { type: string, format: uri }
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+
+    Client:
+      type: object
+      required: [id, legalName, type, jurisdiction, vaspId, status, createdAt]
+      properties:
+        id: { type: string }
+        legalName: { type: string }
+        type: { type: string, enum: [INDIVIDUAL, INSTITUTION] }
+        jurisdiction: { type: string }
+        vaspId: { type: [string, 'null'] }
+        status: { type: string }
+        createdAt: { type: string, format: date-time }
+
+    Account:
+      type: object
+      required: [id, clientId, label, segregationModel, status]
+      properties:
+        id: { type: string }
+        clientId: { type: string }
+        label: { type: string }
+        segregationModel: { type: string, enum: [SEGREGATED, OMNIBUS] }
+        status: { type: string }
+
+    AccountWithWallets:
+      allOf:
+        - $ref: '#/components/schemas/Account'
+        - type: object
+          required: [wallets]
+          properties:
+            wallets:
+              type: array
+              items: { $ref: '#/components/schemas/WalletRaw' }
+
+    WalletRaw:
+      type: object
+      description: Wallet as persisted (no formatted balance)
+      required: [id, accountId, assetSymbol, segregationModel, depositAddress, balanceMinor]
+      properties:
+        id: { type: string }
+        accountId: { type: string }
+        assetSymbol: { type: string, enum: [BTC, ETH, GBPX] }
+        segregationModel: { type: string, enum: [SEGREGATED, OMNIBUS] }
+        depositAddress: { type: string }
+        balanceMinor: { type: string, pattern: '^\d+$' }
+
+    Wallet:
+      allOf:
+        - $ref: '#/components/schemas/WalletRaw'
+        - type: object
+          required: [balance]
+          properties:
+            balance:
+              type: string
+              description: balanceMinor formatted with the asset's decimals
+
+    Transaction:
+      type: object
+      required:
+        [id, walletId, type, assetSymbol, amountMinor, amount, feeMinor, fee, state,
+         counterpartyAddress, counterpartyVaspId, chainTxRef, confirmations,
+         idempotencyKey, createdAt, updatedAt]
+      properties:
+        id: { type: string }
+        walletId: { type: string }
+        type: { type: string, enum: [DEPOSIT, WITHDRAWAL] }
+        assetSymbol: { type: string, enum: [BTC, ETH, GBPX] }
+        amountMinor: { type: string, pattern: '^\d+$' }
+        amount: { type: string, description: Formatted with the asset's decimals }
+        feeMinor: { type: string, pattern: '^\d+$' }
+        fee: { type: string }
+        state:
+          type: string
+          enum:
+            [DETECTED, PENDING_CONFIRMATION, SCREENING, CREDITED, HELD, REJECTED,
+             PENDING_APPROVAL, APPROVED, TRAVEL_RULE_CHECK, BROADCAST, CONFIRMED,
+             CANCELLED, EXPIRED, FAILED]
+        counterpartyAddress: { type: [string, 'null'] }
+        counterpartyVaspId: { type: [string, 'null'] }
+        chainTxRef: { type: [string, 'null'] }
+        confirmations: { type: integer }
+        idempotencyKey: { type: [string, 'null'] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    TransactionRaw:
+      type: object
+      description: Transaction as persisted (simulator force response)
+      required: [id, walletId, type, assetSymbol, amountMinor, feeMinor, state]
+      properties:
+        id: { type: string }
+        walletId: { type: string }
+        type: { type: string, enum: [DEPOSIT, WITHDRAWAL] }
+        assetSymbol: { type: string }
+        amountMinor: { type: string }
+        feeMinor: { type: string }
+        state: { type: string }
+
+    WithdrawalDetail:
+      allOf:
+        - $ref: '#/components/schemas/Transaction'
+        - type: object
+          required: [approvals, travelRule]
+          properties:
+            approvals:
+              type: array
+              items:
+                type: object
+                required: [approverApiKeyId, approverRole, decision]
+                properties:
+                  approverApiKeyId: { type: string }
+                  approverRole: { $ref: '#/components/schemas/Role' }
+                  decision: { type: string, enum: [APPROVE, REJECT] }
+            travelRule:
+              type: array
+              items:
+                type: object
+                required: [direction, payload]
+                properties:
+                  direction: { type: string, enum: [ORIGINATOR, BENEFICIARY] }
+                  payload: { type: object }
+
+    AllowlistedAddress:
+      type: object
+      required: [id, accountId, assetSymbol, address, label, activatesAt, status]
+      properties:
+        id: { type: string }
+        accountId: { type: string }
+        assetSymbol: { type: string }
+        address: { type: string }
+        addressNorm: { type: string }
+        label: { type: string }
+        addedByApiKeyId: { type: string }
+        activatesAt: { type: string, description: Sim-clock ms at which the entry becomes usable }
+        status: { type: string, enum: [PENDING, ACTIVE, REMOVED] }
+        effectiveStatus: { type: string, enum: [PENDING, ACTIVE], description: Computed against the sim clock }
+
+    ComplianceHold:
+      type: object
+      required: [id, transactionId, reason, state, openedBy, createdAt]
+      properties:
+        id: { type: string }
+        transactionId: { type: string }
+        reason: { type: string }
+        state: { type: string, enum: [OPEN, RELEASED, REJECTED] }
+        openedBy: { type: string }
+        resolvedBy: { type: [string, 'null'] }
+        createdAt: { type: string, format: date-time }
+        resolvedAt: { type: [string, 'null'], format: date-time }
+        transaction: { $ref: '#/components/schemas/TransactionRaw' }
+
+    AuditLogEntry:
+      type: object
+      required: [id, actorApiKeyId, actorRole, action, entityType, entityId, before, after, createdAt]
+      properties:
+        id: { type: string }
+        actorApiKeyId: { type: [string, 'null'] }
+        actorRole: { type: [string, 'null'] }
+        action: { type: string }
+        entityType: { type: string }
+        entityId: { type: string }
+        before: {}
+        after: {}
+        createdAt: { type: string, format: date-time }
+
+    WebhookSubscription:
+      type: object
+      required: [id, url, events, createdAt]
+      properties:
+        id: { type: string }
+        url: { type: string }
+        events:
+          type: array
+          items: { type: string }
+        createdAt: { type: string, format: date-time }
+
+    WebhookDelivery:
+      type: object
+      required: [id, subscriptionId, event, payload, signature, attempts, status]
+      properties:
+        id: { type: string }
+        subscriptionId: { type: string }
+        event: { type: string }
+        payload: { type: string, description: Raw JSON string the signature covers }
+        signature: { type: string, description: 'sha256=<hex> HMAC over the raw payload' }
+        attempts: { type: integer }
+        status: { type: string, enum: [PENDING, DELIVERED] }
+        dueAtSimMs: { type: string }
+        deliveredAt: { type: [string, 'null'], format: date-time }
+        createdAt: { type: string, format: date-time }
+
+    ChainState:
+      type: object
+      required: [id, blockHeight, simClockMs, frozen, webhookDelayMs, screeningNext]
+      properties:
+        id: { type: string, const: chain }
+        blockHeight: { type: integer }
+        simClockMs: { type: string }
+        frozen: { type: boolean }
+        webhookDelayMs: { type: string }
+        screeningNext: { type: [string, 'null'], enum: [CLEAN, FLAG, null] }
+        forcedOutcomesJson: { type: string }
