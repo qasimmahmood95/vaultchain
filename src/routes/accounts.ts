@@ -123,7 +123,10 @@ export function registerAccountRoutes(app: FastifyInstance): void {
           required: ['assetSymbol', 'address', 'label'],
           additionalProperties: false,
           properties: {
-            assetSymbol: { type: 'string' },
+            // Enum mirrors openapi/vaultchain.yaml (source of truth): unknown
+            // symbols reject 400 at validation, not 404 in the handler (D18 —
+            // second occurrence, found by the P2b contract agent).
+            assetSymbol: { type: 'string', enum: ['BTC', 'ETH', 'GBPX'] },
             address: { type: 'string', minLength: 4 },
             label: { type: 'string', minLength: 1 },
           },

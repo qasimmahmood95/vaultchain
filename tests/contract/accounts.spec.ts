@@ -161,3 +161,20 @@ test('POST /accounts/{id}/allowlist with a malformed body -> 400 problem+json', 
   });
   expectProblem(res, 400);
 });
+
+test('D18 regression (2nd occurrence): allowlist with an unknown asset symbol -> 400, NOT 404', async ({
+  asOperatorA,
+  build,
+}) => {
+  const account = await build.account({ assets: ['GBPX'] });
+  // The spec's allowlist assetSymbol enum is [BTC, ETH, GBPX]: an unknown
+  // symbol is a request-SHAPE failure. Found by the P2b contract agent as a
+  // second instance of the D18 drift class; route schema aligned to the spec.
+  const res = await new ApiClient(asOperatorA).post(`/accounts/${account.accountId}/allowlist`, {
+    assetSymbol: 'DOGE',
+    address: build.uniqueRef('ext-doge'),
+    label: 'unknown asset',
+  });
+  expect(res.status, 'unknown asset must fail validation (400), not reach the handler (404)').toBe(400);
+  expectProblem(res, 400, 'D18');
+});
