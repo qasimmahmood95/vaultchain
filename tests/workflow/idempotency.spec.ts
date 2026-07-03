@@ -6,7 +6,7 @@
 // Both defences are exact-value assertions (same id / same balance string),
 // never >= — a double-credit must fail loudly.
 
-import { test, expect, ApiClient } from './support/world.js';
+import { test, expect, ApiClient } from '../fixtures/index.js';
 import {
   findDepositDetectedDelivery,
   walletBalance,

@@ -6,7 +6,7 @@
 // Out of scope here (P4 compliance-gate territory): the Travel-Rule THRESHOLD
 // boundary (999.99 / 1000.00 / 1000.01) and duplicate-approval 409 semantics.
 
-import { test, expect, ApiClient } from './support/world.js';
+import { test, expect, ApiClient } from '../fixtures/index.js';
 import {
   auditActions,
   decide,

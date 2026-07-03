@@ -5,8 +5,8 @@
 // the '../fixtures/index.js' surface (see the shim note there); nothing in
 // this file touches src/ or another suite.
 
-import { ApiClient } from './world.js';
-import type { AccountHandle, ApiResult, ChainApi } from './world.js';
+import { ApiClient } from '../../fixtures/index.js';
+import type { AccountHandle, ApiResult, ChainApi } from '../../fixtures/index.js';
 
 // ---------------------------------------------------------------------------
 // Response shapes (re-typed locally from openapi/vaultchain.yaml — the suite

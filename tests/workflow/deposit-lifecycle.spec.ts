@@ -8,7 +8,7 @@
 // PENDING_CONFIRMATION resting state these tests register deposits themselves
 // via POST /wallets/{id}/deposits/simulate on a build.account wallet.
 
-import { test, expect, ApiClient } from './support/world.js';
+import { test, expect, ApiClient } from '../fixtures/index.js';
 import {
   auditActions,
   firstWallet,

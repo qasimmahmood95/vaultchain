@@ -11,7 +11,7 @@
 // build.fundedWallet always creates SEGREGATED accounts, so these tests fund
 // their omnibus wallet directly (deposit + advance) — worked around locally.
 
-import { test, expect, ApiClient } from './support/world.js';
+import { test, expect, ApiClient } from '../fixtures/index.js';
 import {
   decide,
   firstWallet,

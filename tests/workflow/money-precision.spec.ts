@@ -7,7 +7,7 @@
 // (< 1000.00 -> ONE non-maker approval, D7) and domestic, so a single
 // operator-B approval broadcasts them (screening clean).
 
-import { test, expect, ApiClient } from './support/world.js';
+import { test, expect, ApiClient } from '../fixtures/index.js';
 import {
   decide,
   firstWallet,

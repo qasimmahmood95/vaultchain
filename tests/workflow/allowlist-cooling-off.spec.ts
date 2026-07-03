@@ -6,7 +6,7 @@
 // The 422-inside-the-window assertion is this suite's defence for the
 // cooling-off control: precise on status AND problem type.
 
-import { test, expect, ApiClient, PAST_COOLING_OFF_MS } from './support/world.js';
+import { test, expect, ApiClient, PAST_COOLING_OFF_MS } from '../fixtures/index.js';
 import { walletBalance, type ProblemResponse, type TxResponse } from './support/helpers.js';
 
 test.describe('allowlist cooling-off', () => {

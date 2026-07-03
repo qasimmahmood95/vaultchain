@@ -9,7 +9,7 @@
 // Audit entries for hold resolution are deliberately NOT asserted here
 // (P4 compliance-gate territory).
 
-import { test, expect, ApiClient } from './support/world.js';
+import { test, expect, ApiClient } from '../fixtures/index.js';
 import {
   findOpenHold,
   firstWallet,
