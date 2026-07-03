@@ -194,6 +194,7 @@ model WebhookDelivery {
   signature      String // sha256 HMAC over raw payload
   attempts       Int                 @default(0)
   status         String              @default("PENDING") // PENDING | DELIVERED
+  dueAtSimMs     String              @default("0") // sim-clock ms before which delivery is withheld
   deliveredAt    DateTime?
   createdAt      DateTime            @default(now())
 }
