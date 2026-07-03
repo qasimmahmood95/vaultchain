@@ -1,0 +1,220 @@
+// VaultChain — FICTIONAL mock custody platform. SQLite via Prisma (PRD §A.2).
+// Money is never a float: amounts are integer minor units stored as String,
+// interpreted with the asset's `decimals`.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./vaultchain.db"
+}
+
+model Client {
+  id           String    @id @default(cuid())
+  legalName    String
+  type         String // INDIVIDUAL | INSTITUTION
+  jurisdiction String
+  vaspId       String? // set for institutional VASP counterparties (Travel Rule)
+  status       String    @default("ACTIVE") // ACTIVE | SUSPENDED
+  createdAt    DateTime  @default(now())
+  accounts     Account[]
+  apiKeys      ApiKey[]
+  ledger       LedgerEntry[]
+}
+
+model Account {
+  id               String  @id @default(cuid())
+  clientId         String
+  client           Client  @relation(fields: [clientId], references: [id])
+  label            String
+  segregationModel String // SEGREGATED | OMNIBUS
+  status           String  @default("ACTIVE")
+  wallets          Wallet[]
+  policies         ApprovalPolicy[]
+  allowlist        AllowlistedAddress[]
+}
+
+model Asset {
+  symbol                String @id // BTC | ETH | GBPX
+  name                  String
+  decimals              Int
+  chain                 String
+  minWithdrawalMinor    String
+  requiredConfirmations Int
+}
+
+model Wallet {
+  id               String @id @default(cuid())
+  accountId        String
+  account          Account @relation(fields: [accountId], references: [id])
+  assetSymbol      String
+  segregationModel String // mirrors account at creation
+  depositAddress   String @unique
+  balanceMinor     String @default("0")
+  transactions     Transaction[]
+  ledger           LedgerEntry[]
+}
+
+// Per-client sub-ledger. Invariant: sum(ledger for wallet) == wallet.balanceMinor.
+model LedgerEntry {
+  id          String   @id @default(cuid())
+  walletId    String
+  wallet      Wallet   @relation(fields: [walletId], references: [id])
+  clientId    String
+  client      Client   @relation(fields: [clientId], references: [id])
+  direction   String // CREDIT | DEBIT
+  amountMinor String
+  kind        String // PRINCIPAL | FEE | REFUND
+  txId        String
+  createdAt   DateTime @default(now())
+}
+
+model Transaction {
+  id                   String   @id @default(cuid())
+  walletId             String
+  wallet               Wallet   @relation(fields: [walletId], references: [id])
+  type                 String // DEPOSIT | WITHDRAWAL
+  assetSymbol          String
+  amountMinor          String
+  feeMinor             String   @default("0")
+  state                String
+  counterpartyAddress  String?
+  counterpartyVaspId   String?
+  chainTxRef           String? // deposits: on-chain event key
+  broadcastBlockHeight Int?
+  confirmations        Int      @default(0)
+  idempotencyKey       String?  @unique
+  createdByApiKeyId    String? // the maker, for maker-checker
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  approvals            Approval[]
+  holds                ComplianceHold[]
+  travelRuleRecords    TravelRuleRecord[]
+}
+
+model ApprovalPolicy {
+  id                String  @id @default(cuid())
+  accountId         String
+  account           Account @relation(fields: [accountId], references: [id])
+  assetSymbol       String? // null = default policy for the account
+  thresholdMinor    String
+  approvalsRequired Int
+  makerCannotCheck  Boolean @default(true)
+}
+
+model Approval {
+  id               String      @id @default(cuid())
+  transactionId    String
+  transaction      Transaction @relation(fields: [transactionId], references: [id])
+  approverApiKeyId String
+  approverRole     String
+  decision         String // APPROVE | REJECT
+  createdAt        DateTime    @default(now())
+
+  // Maker-checker integrity: one decision per approver per transaction (PRD §A.1).
+  @@unique([transactionId, approverApiKeyId])
+}
+
+model AllowlistedAddress {
+  id              String  @id @default(cuid())
+  accountId       String
+  account         Account @relation(fields: [accountId], references: [id])
+  assetSymbol     String
+  address         String
+  addressNorm     String // normalized for comparison
+  label           String
+  addedByApiKeyId String
+  activatesAt     String // sim-clock ms (BigInt as string) — cooling-off boundary
+  status          String  @default("PENDING") // PENDING | ACTIVE | REMOVED
+}
+
+model ComplianceHold {
+  id            String      @id @default(cuid())
+  transactionId String
+  transaction   Transaction @relation(fields: [transactionId], references: [id])
+  reason        String
+  state         String      @default("OPEN") // OPEN | RELEASED | REJECTED
+  openedBy      String
+  resolvedBy    String?
+  createdAt     DateTime    @default(now())
+  resolvedAt    DateTime?
+}
+
+model TravelRuleRecord {
+  id            String      @id @default(cuid())
+  transactionId String
+  transaction   Transaction @relation(fields: [transactionId], references: [id])
+  direction     String // ORIGINATOR | BENEFICIARY
+  payload       String // JSON: name, accountRef, physicalAddress?, dateOfBirth?
+  createdAt     DateTime    @default(now())
+}
+
+// Append-only: no update/delete path exists in the API.
+model AuditLogEntry {
+  id            String   @id @default(cuid())
+  actorApiKeyId String?
+  actorRole     String?
+  action        String
+  entityType    String
+  entityId      String
+  before        String? // JSON snapshot
+  after         String? // JSON snapshot
+  createdAt     DateTime @default(now())
+
+  @@index([entityType, entityId])
+}
+
+model ApiKey {
+  id       String  @id @default(cuid())
+  keyHash  String  @unique // sha256 of the raw key
+  role     String // CLIENT | OPERATOR | COMPLIANCE_OFFICER | ADMIN
+  clientId String? // tenant binding for CLIENT keys
+  client   Client? @relation(fields: [clientId], references: [id])
+  label    String
+  status   String  @default("ACTIVE")
+}
+
+model WebhookSubscription {
+  id         String            @id @default(cuid())
+  url        String
+  secret     String
+  events     String // JSON array of event names
+  createdAt  DateTime          @default(now())
+  deliveries WebhookDelivery[]
+}
+
+model WebhookDelivery {
+  id             String              @id @default(cuid())
+  subscriptionId String
+  subscription   WebhookSubscription @relation(fields: [subscriptionId], references: [id])
+  event          String
+  payload        String // JSON
+  signature      String // sha256 HMAC over raw payload
+  attempts       Int                 @default(0)
+  status         String              @default("PENDING") // PENDING | DELIVERED
+  deliveredAt    DateTime?
+  createdAt      DateTime            @default(now())
+}
+
+// Exactly-once deposit crediting: one credit per on-chain event (PRD §A.3.1).
+model ProcessedEvent {
+  id         String   @id @default(cuid())
+  walletId   String
+  chainTxRef String
+  createdAt  DateTime @default(now())
+
+  @@unique([walletId, chainTxRef])
+}
+
+// Single-row control plane (id = "chain") — the fake-chain clock (PRD §A.7).
+model ChainState {
+  id                 String  @id @default("chain")
+  blockHeight        Int     @default(0)
+  simClockMs         String  @default("1750000000000") // BigInt ms as string
+  frozen             Boolean @default(false)
+  webhookDelayMs     String  @default("0")
+  screeningNext      String? // CLEAN | FLAG — consumed once; null = default CLEAN
+  forcedOutcomesJson String  @default("{}") // txId -> CONFIRMED | FAILED
+}
