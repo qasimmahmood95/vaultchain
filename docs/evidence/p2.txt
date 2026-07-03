@@ -1,0 +1,20 @@
+=== VaultChain Phase P2 evidence (main) ===
+=== captured: 2026-07-03T23:08:57Z | commit: ad5be1b ===
+
+$ pnpm typecheck
+$ tsc --noEmit
+exit: 0
+
+$ pnpm test   (contract fully parallel, then workflow serialized --workers=1; fresh seeded server via webServer)
+Running 176 tests using 6 workers
+  176 passed (22.2s)
+Running 22 tests using 1 worker
+  22 passed (20.1s)
+exit: 0
+
+$ npx tsx scripts/check-invariant.ts   (post-suite reconciliation sweep over the accumulated DB — BUG-001 defence-in-depth, D24)
+RECONCILIATION OK: invariant holds across 69 wallets
+
+$ pnpm smoke   (P1 smoke still green alongside the new layers)
+== SMOKE PASSED ==
+exit: 0
