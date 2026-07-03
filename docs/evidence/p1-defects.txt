@@ -1,0 +1,31 @@
+=== VaultChain Phase P1 — planted-defect evidence (defects-planted / v1-defects) ===
+=== captured: 2026-07-03T22:11:17Z | branch: defects-planted (rebased onto main incl. pre-P2 cleanup) ===
+
+Branch shape (main + one commit per defect):
+  ef91645 BUG-007
+  5ab1932 BUG-006
+  20b2c4a BUG-005
+  7861336 BUG-004
+  e2e5bd4 BUG-003
+  5a65322 BUG-002
+  04968ae BUG-001
+
+$ pnpm typecheck   (defects are behavioural, not type errors — must still pass)
+$ tsc --noEmit
+exit: 0
+
+$ npx tsx scripts/repro-p1-defects.ts   (proves each BUGS.md Reproduce recipe)
+REPRODUCED      BUG-001: feeFor(1500,10)=1, correct half-even=2 (.5 boundary truncated)
+REPRODUCED      BUG-002: 2 approvals from ONE operator -> state=PENDING_CONFIRMATION, distinctApprovers=1
+REPRODUCED      BUG-003: exactly 1000.00 cross-VASP, 2 approvals -> state=PENDING_CONFIRMATION, travelRuleRecords=0 (skipped TRAVEL_RULE_CHECK)
+REPRODUCED      BUG-004: fresh address within sim-clock cooling-off wrongly usable: status=201 (correct=422 cooling-off; wall-clock bypass)
+REPRODUCED      BUG-005: operator POST /holds/{id}/release -> status=200 (expected 403)
+REPRODUCED      BUG-006: hold cmr5hmv3c0016oyw4i4gkooo9 audit actions=[HOLD_OPENED] (HOLD_RELEASED missing)
+REPRODUCED      BUG-007: balance before replay=1000.00, after=2000.00 (double-credit)
+repro exit: 0 (0 = all seven reproduced, re-verified post-cleanup)
+
+Contrast: docs/evidence/p1.txt (on main) runs the SAME seven scenarios against the
+fixed platform (now incl. the Minor 1/4 fixes) and shows all seven behaving correctly.
+
+Note: the P1 happy-path smoke is NOT a bug-catching test; the executable bug-catching
+tests arrive in P2. This repro harness is the P1 stand-in proving each defect is live.
