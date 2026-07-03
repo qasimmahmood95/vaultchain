@@ -32,7 +32,7 @@ export function fiatEquivalentMinor(amountMinor: bigint, asset: Pick<Asset, 'sym
  * (PRD §A.3.3 — the boundary is inclusive: >=).
  */
 export function requiresTravelRule(fiatMinor: bigint, crossVasp: boolean): boolean {
-  return crossVasp && fiatMinor >= TRAVEL_RULE_THRESHOLD_FIAT_MINOR;
+  return crossVasp && fiatMinor > TRAVEL_RULE_THRESHOLD_FIAT_MINOR;
 }
 
 /** Approvals required for this withdrawal under the account's policy (DECISIONS.md D7). */
