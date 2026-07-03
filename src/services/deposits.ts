@@ -3,7 +3,7 @@
 // Crediting is EXACTLY ONCE per on-chain event, keyed (walletId, chainTxRef)
 // through the ProcessedEvent unique constraint — a replayed webhook is a no-op.
 
-import { Prisma, type PrismaClient, type Transaction } from '@prisma/client';
+import { type PrismaClient, type Transaction } from '@prisma/client';
 import type { Actor } from '../config.js';
 import { conflict, notFound, unprocessable } from '../errors.js';
 import { getChain } from './clock.js';
@@ -84,15 +84,6 @@ export async function creditDeposit(prisma: PrismaClient, txId: string, actor: A
     // CREDITED falls through to the ProcessedEvent claim, which makes replays no-ops.
     if (!['SCREENING', 'HELD', 'CREDITED'].includes(tx.state)) {
       return { credited: false, reason: 'not-creditable' };
-    }
-
-    try {
-      await db.processedEvent.create({ data: { walletId: tx.walletId, chainTxRef: tx.chainTxRef } });
-    } catch (err) {
-      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
-        return { credited: false, reason: 'already-credited' };
-      }
-      throw err;
     }
 
     const newBalance = BigInt(tx.wallet.balanceMinor) + BigInt(tx.amountMinor);
