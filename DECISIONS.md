@@ -43,3 +43,7 @@ record it here, continue. None of these change the API contract in `openapi/vaul
   per non-goals).
 - **D16 — `GET /clients` for a `client` role returns only its own client** (self-scoped
   list), matching the §A.4 note "read scoped for client".
+- **D17 — `POST /accounts` auto-creates a default approval policy** (threshold 100000
+  minor, 2 approvals, maker≠checker) so no account can exist without maker-checker
+  controls, and the pure-API smoke can exercise dual approval without touching the DB.
+  There is deliberately no policy-management endpoint in P1 (§A.4 doesn't list one).

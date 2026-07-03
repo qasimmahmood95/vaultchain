@@ -127,7 +127,7 @@ paths:
   /accounts:
     post:
       tags: [accounts]
-      summary: Create an account with one wallet per listed asset (OPERATOR/ADMIN)
+      summary: Create an account with one wallet per listed asset and a default dual-approval policy (OPERATOR/ADMIN)
       requestBody:
         required: true
         content:

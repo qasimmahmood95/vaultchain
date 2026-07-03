@@ -1,0 +1,58 @@
+=== VaultChain Phase P1 evidence (main) ===
+=== captured: 2026-07-03T15:54:33Z | commit: 0d92e3e (+ working tree) ===
+
+$ node --version && pnpm --version
+v26.3.1
+11.9.0
+
+$ pnpm typecheck
+$ tsc --noEmit
+exit code: 0
+
+$ pnpm seed   (determinism: run twice, identical output)
+Seeded: 8 clients, 20 accounts, 48 wallets, 330 transactions, 310 ledger rows.
+Seeded: 8 clients, 20 accounts, 48 wallets, 330 transactions, 310 ledger rows.
+
+$ npx tsx scripts/check-invariant.ts
+RECONCILIATION OK: invariant holds across 48 wallets
+
+$ pnpm smoke   (full test suite for P1 = typecheck + smoke, per phase instructions)
+$ tsx scripts/smoke.ts
+== VaultChain P1 smoke ==
+-- reseeding (demo seed) --
+-- setup via API --
+  [PASS] webhook subscription created
+  [PASS] client created
+  [PASS] account created (default dual-approval policy)
+  [PASS] address allowlisted (cooling-off starts)
+  [PASS] sim clock advanced past cooling-off
+-- deposit lifecycle --
+  [PASS] deposit registered PENDING_CONFIRMATION
+  [PASS] chain advanced 1 block (GBPX needs 1 conf)
+  [PASS] deposit credited: balance 5000.00
+  [PASS] deposit.detected + deposit.credited deliveries recorded
+-- withdrawal lifecycle (1500.00 GBPX, cross-VASP) --
+  [PASS] withdrawal created PENDING_APPROVAL
+  [PASS] maker cannot check (403)
+  [PASS] first approval recorded, still PENDING_APPROVAL
+  [PASS] second approval -> TRAVEL_RULE_CHECK (payload required at/above threshold)
+  [PASS] travel rule attached -> screening clean -> PENDING_CONFIRMATION
+  [PASS] balance debited amount+fee: 3498.50
+  [PASS] chain advanced -> withdrawal CONFIRMED
+  [PASS] withdrawal state CONFIRMED
+  [PASS] idempotency: same key returns SAME withdrawal (200, no duplicate)
+  [PASS] audit trail contains WITHDRAWAL_CREATED
+  [PASS] audit trail contains WITHDRAWAL_APPROVAL_RECORDED
+  [PASS] audit trail contains TRANSACTION_APPROVED
+  [PASS] audit trail contains TRANSACTION_TRAVEL_RULE_CHECK
+  [PASS] audit trail contains TRAVEL_RULE_ATTACHED
+  [PASS] audit trail contains TRANSACTION_SCREENING
+  [PASS] audit trail contains TRANSACTION_BROADCAST
+  [PASS] audit trail contains TRANSACTION_PENDING_CONFIRMATION
+  [PASS] audit trail contains TRANSACTION_CONFIRMED
+-- reconciliation invariant --
+  RECONCILIATION OK: invariant holds across 4 wallets
+    [PASS] reconciliation invariant holds
+
+== SMOKE PASSED ==
+exit code: 0

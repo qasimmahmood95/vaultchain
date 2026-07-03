@@ -59,6 +59,11 @@ export function registerAccountRoutes(app: FastifyInstance): void {
               depositAddress: `vc-${symbol.toLowerCase()}-${randomUUID()}`,
             })),
           },
+          // Default control: dual approval above 1000.00-equivalent minor units,
+          // maker cannot check (DECISIONS.md D17). No account exists without a policy.
+          policies: {
+            create: [{ assetSymbol: null, thresholdMinor: '100000', approvalsRequired: 2, makerCannotCheck: true }],
+          },
         },
         include: { wallets: true },
       });
