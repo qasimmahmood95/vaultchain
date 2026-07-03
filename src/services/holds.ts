@@ -54,14 +54,16 @@ export async function resolveHoldCore(
       // resolvedAt is wall-clock metadata, not domain time — all gating uses the sim clock.
       data: { state: input.decision, resolvedBy: input.actor.apiKeyId, resolvedAt: new Date() },
     });
-    await writeAudit(db, {
-      actor: input.actor,
-      action: input.decision === 'RELEASED' ? 'HOLD_RELEASED' : 'HOLD_REJECTED',
-      entityType: 'ComplianceHold',
-      entityId: hold.id,
-      before: { state: 'OPEN' },
-      after: { state: input.decision, resolvedBy: input.actor.apiKeyId },
-    });
+    if (input.decision === 'REJECTED') {
+      await writeAudit(db, {
+        actor: input.actor,
+        action: 'HOLD_REJECTED',
+        entityType: 'ComplianceHold',
+        entityId: hold.id,
+        before: { state: 'OPEN' },
+        after: { state: input.decision, resolvedBy: input.actor.apiKeyId },
+      });
+    }
     return { hold: updated, transaction: hold.transaction };
   });
 }
