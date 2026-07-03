@@ -38,9 +38,16 @@ export default defineConfig({
     {
       name: 'workflow',
       testDir: 'tests/workflow',
-      dependencies: ['setup'],
-      // Belt-and-braces: within-file serial even if someone runs this project
-      // with more than one worker. The npm script enforces --workers=1.
+      // Depends on contract so the two NEVER interleave in a single bare
+      // invocation: contract's builder-driven clock jumps would race
+      // workflow's time-sensitive assertions (same defect class as
+      // CRITICAL-1). Fast iteration: --project=workflow --no-deps.
+      dependencies: ['setup', 'contract'],
+      // Serialization enforced HERE, not in npm scripts: the sim clock is
+      // platform-global, and every invocation path (npx playwright test,
+      // --project=workflow, IDE runners) must be safe (D21; P2 review
+      // CRITICAL-1 — fullyParallel:false alone only serializes within a file).
+      workers: 1,
       fullyParallel: false,
     },
   ],

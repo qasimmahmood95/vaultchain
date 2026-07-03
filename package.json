@@ -19,8 +19,8 @@
     "smoke": "tsx scripts/smoke.ts",
     "test:serve": "tsx scripts/test-serve.ts",
     "test:contract": "playwright test --project=contract",
-    "test:workflow": "playwright test --project=workflow --workers=1",
-    "test": "playwright test --project=contract && playwright test --project=workflow --workers=1"
+    "test:workflow": "playwright test --project=workflow",
+    "test": "playwright test"
   },
   "dependencies": {
     "@prisma/client": "^6.16.0",

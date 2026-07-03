@@ -18,3 +18,25 @@ RECONCILIATION OK: invariant holds across 69 wallets
 $ pnpm smoke   (P1 smoke still green alongside the new layers)
 == SMOKE PASSED ==
 exit: 0
+
+=== POST-TRIAGE (P2 review CRITICAL-1) — re-run of gate step 1 ===
+captured: 2026-07-03T23:29:28Z
+Fix: workflow project serialization moved INTO playwright.config.ts (workers: 1)
+and workflow now depends on contract, so no invocation path can interleave
+contract's clock jumps with workflow's time-sensitive assertions.
+
+$ pnpm typecheck
+$ tsc --noEmit
+exit: 0
+
+$ npx playwright test   (the BARE invocation the reviewer proved red pre-fix)
+Running 197 tests using 6 workers
+  197 passed (26.1s)
+exit: 0
+
+$ KEEP_DB=1 npx playwright test   (accumulated-DB stability)
+  197 passed (15.4s)
+exit: 0
+
+$ npx tsx scripts/check-invariant.ts
+RECONCILIATION OK: invariant holds across 170 wallets

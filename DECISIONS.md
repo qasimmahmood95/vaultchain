@@ -63,9 +63,16 @@ record it here, continue. None of these change the API contract in `openapi/vaul
   analogue. Browser storageState lands in P3 with the login page.
 - **D21 — Time-sensitive assertions live only in the serialized `workflow` project.** The
   sim clock/block height are platform-global; running clock-dependent assertions in
-  parallel is exactly the shared-state flake source §B.6 bans. `pnpm test` runs contract
-  fully parallel, then workflow with `--workers=1`. CI splits them into separate jobs
-  anyway (§B.5), so nothing is lost.
+  parallel is exactly the shared-state flake source §B.6 bans. Serialization is enforced
+  **in playwright.config.ts** (`workers: 1` on the workflow project — supported since
+  Playwright's per-project workers), so every invocation path is safe, not just the npm
+  scripts. Additionally the workflow project **depends on contract**, so a single bare
+  invocation never interleaves contract's clock jumps with workflow's time-sensitive
+  assertions. (Amended after P2 review CRITICAL-1: the original script-only `--workers=1`
+  left `npx playwright test` unserialized and red; the project dependency closes the same
+  hole across projects.) `pnpm test` is now just `playwright test`; fast workflow-only
+  iteration: `--project=workflow --no-deps`. CI splits the projects into separate jobs
+  anyway (§B.5).
 - **D22 — The sim clock moves FORWARD ONLY during a suite run.** The `chain` fixture's
   teardown resets fault state only (webhook delay, queued screening) — never the clock —
   because a mid-run rewind would corrupt parallel workers. `chain.reset()` exists for
