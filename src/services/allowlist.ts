@@ -47,7 +47,7 @@ export async function addAllowlistedAddress(
  */
 export async function isActive(db: Db, entry: AllowlistedAddress): Promise<boolean> {
   if (entry.status === 'REMOVED') return false;
-  const now = await simNow(db);
+  const now = BigInt(Date.now());
   return now >= BigInt(entry.activatesAt);
 }
 
