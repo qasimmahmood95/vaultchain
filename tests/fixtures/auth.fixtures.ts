@@ -61,7 +61,10 @@ type WorkerFixtureTuple = [
 
 function workerRole(name: keyof typeof KEYS): WorkerFixtureTuple {
   return [
-    async (_args, use) => {
+    // Playwright requires the object-destructuring pattern for the first
+    // param of a fixture function — an identifier like `_args` is rejected
+    // at extend() time (found by the P2b workflow agent).
+    async ({}, use) => {
       const ctx = await roleContext(KEYS[name]!);
       await use(ctx);
       await ctx.dispose();

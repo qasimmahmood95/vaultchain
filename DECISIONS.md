@@ -73,3 +73,12 @@ record it here, continue. None of these change the API contract in `openapi/vaul
   doesn't assert on clock position.
 - **D23 — No browser binaries in P2.** The API layers use request contexts only;
   `playwright install chromium` becomes a P3 prerequisite.
+- **D24 — Per-client omnibus ledger attribution is NOT API-testable in P2, by design.**
+  §A.4 deliberately exposes no ledger-entry endpoint, so the workflow suite asserts
+  omnibus *lifecycle* behaviour only; the Σ(ledger)==balance invariant (including the
+  seeded 5-client pool) is enforced by `scripts/check-invariant.ts`, which the phase
+  evidence runs after the full suite. Direct attribution assertions become possible if a
+  ledger read surface is ever added (that would be a PRD §A.4 contract change, not a test
+  decision). Consequence: BUG-001's practical catch is the exact half-even fee assertion
+  in `tests/workflow/money-precision.spec.ts` plus the post-suite invariant sweep — BUGS.md
+  "Caught by" updated to match.

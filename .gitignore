@@ -4,6 +4,9 @@ BUGS.md
 # Dependencies
 node_modules/
 
+# Agent worktrees (parallel suite builds)
+.claude/worktrees/
+
 # Build output
 dist/
 build/
