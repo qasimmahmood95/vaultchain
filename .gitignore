@@ -1,0 +1,40 @@
+# --- The planted-defect answer key: must never be committed ---
+BUGS.md
+
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+
+# Playwright
+test-results/
+playwright-report/
+blob-report/
+all-blob-reports/
+playwright/.cache/
+tests/**/.auth/
+gate-summary.md
+gate-summary.html
+
+# Prisma / SQLite
+*.db
+*.db-journal
+prisma/*.db
+
+# Env & logs
+.env
+.env.*
+!.env.example
+*.log
+npm-debug.log*
+
+# Evidence captures are committed intentionally (docs/evidence/), so not ignored here.
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
