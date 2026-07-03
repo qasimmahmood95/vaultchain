@@ -69,3 +69,12 @@ export function requireRole(...roles: Role[]) {
     }
   };
 }
+
+/** preHandler factory: allow any role except the listed ones. */
+export function denyRole(...roles: Role[]) {
+  return async (request: FastifyRequest, _reply: FastifyReply): Promise<void> => {
+    if (roles.includes(request.actor.role)) {
+      throw forbidden(`Role ${request.actor.role} is not permitted`);
+    }
+  };
+}

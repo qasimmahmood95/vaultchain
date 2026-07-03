@@ -5,7 +5,7 @@
 import type { FastifyInstance } from 'fastify';
 import { prisma } from '../db.js';
 import { notFound } from '../errors.js';
-import { requireRole } from '../plugins/auth.js';
+import { denyRole, requireRole } from '../plugins/auth.js';
 import { pageArgs, serializeTransactionRaw, toPage } from '../serialize.js';
 import { rejectHold, releaseHold } from '../services/lifecycle.js';
 
@@ -41,13 +41,13 @@ export function registerHoldRoutes(app: FastifyInstance): void {
 
   app.post<{ Params: { id: string } }>(
     '/holds/:id/release',
-    { preHandler: requireRole('COMPLIANCE_OFFICER') },
+    { preHandler: denyRole('CLIENT') },
     async (request) => releaseHold(prisma, request.params.id, request.actor),
   );
 
   app.post<{ Params: { id: string } }>(
     '/holds/:id/reject',
-    { preHandler: requireRole('COMPLIANCE_OFFICER') },
+    { preHandler: denyRole('CLIENT') },
     async (request) => rejectHold(prisma, request.params.id, request.actor),
   );
 }
