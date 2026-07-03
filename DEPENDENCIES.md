@@ -17,9 +17,16 @@ without a justification here gets removed.
 - **tsx** — runs TS directly (server, seeds, smoke) so P1 needs no build/dist step.
 - **@types/node** — Node built-ins (crypto, http) under `strict`.
 
+## Dev — test architecture (P2+)
+
+- **@playwright/test** — the test runner the whole showcase is built on (PRD §B).
+- **zod** — independent re-encoding of `openapi/vaultchain.yaml` for the contract layer
+  (PRD §B.3); deliberately NOT generated from server types so drift is detectable.
+
 ## Deliberately absent
 
-- **zod** — contract-test concern; arrives with the P2 test workspace, not the platform.
 - **eta** (templates) — admin UI is P3 scope (see DECISIONS.md D1).
 - **dotenv** — the SQLite URL is a literal in `schema.prisma` (DECISIONS.md D5); nothing
-  else needs env config in P1.
+  else needs env config.
+- **openapi-to-zod generators** — would defeat the contract layer's purpose: a generated
+  schema can't catch spec/implementation drift (PRD §A.4).

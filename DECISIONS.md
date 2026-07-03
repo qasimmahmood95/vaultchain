@@ -57,3 +57,19 @@ record it here, continue. None of these change the API contract in `openapi/vaul
   `idempotencyKey` re-asserts wallet ownership for CLIENT callers (404 on mismatch)
   instead of returning another tenant's withdrawal by key. **P2's authz matrix must
   include an idempotency-replay cross-tenant case** so this stays pinned by a test.
+- **D20 — P2's `setup` project writes `.auth/identity.json`, not browser storageState.**
+  §B.2's storageState is a UI-login artifact; no UI exists until P3. The setup project
+  verifies every role key against `/me` and persists the resolved identities — the API-key
+  analogue. Browser storageState lands in P3 with the login page.
+- **D21 — Time-sensitive assertions live only in the serialized `workflow` project.** The
+  sim clock/block height are platform-global; running clock-dependent assertions in
+  parallel is exactly the shared-state flake source §B.6 bans. `pnpm test` runs contract
+  fully parallel, then workflow with `--workers=1`. CI splits them into separate jobs
+  anyway (§B.5), so nothing is lost.
+- **D22 — The sim clock moves FORWARD ONLY during a suite run.** The `chain` fixture's
+  teardown resets fault state only (webhook delay, queued screening) — never the clock —
+  because a mid-run rewind would corrupt parallel workers. `chain.reset()` exists for
+  explicit use. Corollary: builder-induced clock jumps are harmless to any test that
+  doesn't assert on clock position.
+- **D23 — No browser binaries in P2.** The API layers use request contexts only;
+  `playwright install chromium` becomes a P3 prerequisite.

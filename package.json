@@ -16,16 +16,22 @@
     "db:generate": "prisma generate",
     "seed": "tsx scripts/seed.ts",
     "seed:demo": "tsx scripts/seed-demo.ts",
-    "smoke": "tsx scripts/smoke.ts"
+    "smoke": "tsx scripts/smoke.ts",
+    "test:serve": "tsx scripts/test-serve.ts",
+    "test:contract": "playwright test --project=contract",
+    "test:workflow": "playwright test --project=workflow --workers=1",
+    "test": "playwright test --project=contract && playwright test --project=workflow --workers=1"
   },
   "dependencies": {
     "@prisma/client": "^6.16.0",
     "fastify": "^5.6.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.1",
     "@types/node": "^22.18.0",
     "prisma": "^6.16.0",
     "tsx": "^4.20.0",
-    "typescript": "^5.9.0"
+    "typescript": "^5.9.0",
+    "zod": "^4.4.3"
   }
 }
