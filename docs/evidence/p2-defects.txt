@@ -1,0 +1,43 @@
+=== VaultChain Phase P2 — planted-defect evidence (defects-planted / v1-defects) ===
+=== captured: 2026-07-03T23:31:50Z | branch tip rebased onto main 61611a7 (post-CRITICAL-1 triage) ===
+
+Branch shape: main + one commit per defect:
+  1841337 test(evidence): P2 defect-branch run — 8 failures, all mapped to BUG-001/004/005/007
+  8bb663e BUG-007
+  55c97da BUG-006
+  9c4981f BUG-005
+  5a137fe BUG-004
+  fba7a6b BUG-003
+  30fc2a9 BUG-002
+  df0ae2b BUG-001
+
+$ pnpm typecheck
+$ tsc --noEmit
+exit: 0
+
+$ npx playwright test   (bare invocation; workflow is dependency-skipped once contract fails)
+    x   87 [contract] › tests\contract\authz-matrix.spec.ts:410:5 › POST /holds/{id}/release as operatorB -> 403 (41ms)
+    x   92 [contract] › tests\contract\authz-matrix.spec.ts:410:5 › POST /holds/{id}/reject as admin -> 403 (16ms)
+    x   86 [contract] › tests\contract\authz-matrix.spec.ts:410:5 › POST /holds/{id}/release as operatorA -> 403 (69ms)
+    x   91 [contract] › tests\contract\authz-matrix.spec.ts:410:5 › POST /holds/{id}/reject as operatorA -> 403 (59ms)
+    x   88 [contract] › tests\contract\authz-matrix.spec.ts:410:5 › POST /holds/{id}/release as admin -> 403 (90ms)
+    5 failed
+    171 passed (24.1s)
+
+$ npx playwright test --project=workflow --no-deps   (workflow failures, explicitly)
+    x   1 [workflow] › tests\workflow\allowlist-cooling-off.spec.ts:13:3 › allowlist cooling-off › withdrawal inside the cooling-off window is 422; after the sim clock passes it, the same withdrawal succeeds (682ms)
+    x   8 [workflow] › tests\workflow\idempotency.spec.ts:53:3 › idempotency › webhook replay: a re-delivered deposit.detected does NOT credit the deposit twice (152ms)
+    x   9 [workflow] › tests\workflow\money-precision.spec.ts:31:5 › money precision › GBPX withdrawal of 15.00: fee is exactly 0.02 (1.5 minor rounds up to even 2) (194ms)
+    3 failed
+    18 passed (21.2s)
+
+=== FAILURE -> DEFECT MAP (P2 primary catches: BUG-001/004/005/007) ===
+  BUG-001 (float/floor fee)      -> money-precision: 15.00 GBPX fee '0.01' != half-even '0.02'
+                                    (25.00 passes on BOTH branches: floor & half-even agree at 2.5)
+  BUG-004 (wall-clock cooling)   -> allowlist-cooling-off: in-window withdrawal 201, required 422
+  BUG-005 (negative role check)  -> authz-matrix: 5 hold-resolution rows 200/409, required 403
+  BUG-007 (no exactly-once claim)-> idempotency: replayed deposit.detected double-credited
+
+  BUG-002/003/006 -> UNCAUGHT BY DESIGN: P4 compliance-gate primaries (dual-approval race,
+                     Travel-Rule threshold boundary, hold-release audit completeness).
+  Everything else green here: 171/176 contract + 18/21 workflow.
