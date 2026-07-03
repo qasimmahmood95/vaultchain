@@ -56,3 +56,14 @@ $ tsx scripts/smoke.ts
 
 == SMOKE PASSED ==
 exit code: 0
+
+=== BOUNDARY CONTRAST (main / fixed) — the seven scenarios behave CORRECTLY ===
+$ npx tsx <main-side contrast>   (mirror of the defect repro, asserting fixed behaviour)
+CORRECT        BUG-001: feeFor(1500,10)=2 (half-even=2)
+CORRECT        BUG-002: duplicate approval -> status=409, state=PENDING_APPROVAL
+CORRECT        BUG-003: exactly 1000.00 cross-VASP, 2 approvals -> state=TRAVEL_RULE_CHECK
+CORRECT        BUG-004: fresh address in cooling-off blocked -> status=422
+CORRECT        BUG-005: operator release -> status=403
+CORRECT        BUG-006: release audit actions=[HOLD_OPENED,HOLD_RELEASED]
+CORRECT        BUG-007: balance before=1000.00, after replay=1000.00 (credited once)
+contrast exit: 0 (0 = all seven correct on main)
