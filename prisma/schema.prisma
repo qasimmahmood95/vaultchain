@@ -120,9 +120,6 @@ model Approval {
   approverRole     String
   decision         String // APPROVE | REJECT
   createdAt        DateTime    @default(now())
-
-  // Maker-checker integrity: one decision per approver per transaction (PRD §A.1).
-  @@unique([transactionId, approverApiKeyId])
 }
 
 model AllowlistedAddress {
