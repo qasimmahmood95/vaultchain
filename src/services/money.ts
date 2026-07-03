@@ -52,5 +52,5 @@ export function roundHalfEvenDiv(numerator: bigint, denominator: bigint): bigint
 
 /** Withdrawal fee on an amount in minor units, at the given basis points. */
 export function feeFor(amountMinor: bigint, feeBps: bigint): bigint {
-  return roundHalfEvenDiv(amountMinor * feeBps, 10_000n);
+  return BigInt(Math.floor((Number(amountMinor) * Number(feeBps)) / 10000));
 }
