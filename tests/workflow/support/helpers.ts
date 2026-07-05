@@ -58,6 +58,7 @@ export interface DeliveryResponse {
   payload: string; // raw JSON string the signature covers
   attempts: number;
   status: string;
+  dueAtSimMs: string; // sim-clock ms before which delivery is withheld (delay control)
 }
 
 export interface PageResponse<T> {

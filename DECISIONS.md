@@ -80,6 +80,12 @@ record it here, continue. None of these change the API contract in `openapi/vaul
   doesn't assert on clock position.
 - **D23 — No browser binaries in P2.** The API layers use request contexts only;
   `playwright install chromium` becomes a P3 prerequisite.
+- **D25 — Strict contract schemas: DECIDED-YES, executed in P4.** (P2 review Minor 8.)
+  The zod response schemas will move to `z.strictObject` and the OpenAPI response
+  schemas gain `additionalProperties: false` **together**, in P4, alongside the
+  `contract-drift` auditor agent — one coordinated change so the contract layer catches
+  drift in BOTH directions (added fields as well as drops/renames). P4 inherits this as
+  standing policy; do not partially tighten before then.
 - **D24 — Per-client omnibus ledger attribution is NOT API-testable in P2, by design.**
   §A.4 deliberately exposes no ledger-entry endpoint, so the workflow suite asserts
   omnibus *lifecycle* behaviour only; the Σ(ledger)==balance invariant (including the
