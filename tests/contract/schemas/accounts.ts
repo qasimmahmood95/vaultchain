@@ -7,7 +7,7 @@ export const AssetSymbolSchema = z.enum(['BTC', 'ETH', 'GBPX']);
 export const SegregationModelSchema = z.enum(['SEGREGATED', 'OMNIBUS']);
 
 /** components/schemas/Account */
-export const AccountSchema = z.object({
+export const AccountSchema = z.strictObject({
   id: z.string(),
   clientId: z.string(),
   label: z.string(),
@@ -16,7 +16,7 @@ export const AccountSchema = z.object({
 });
 
 /** components/schemas/WalletRaw — wallet as persisted (no formatted balance). */
-export const WalletRawSchema = z.object({
+export const WalletRawSchema = z.strictObject({
   id: z.string(),
   accountId: z.string(),
   assetSymbol: AssetSymbolSchema,
@@ -36,7 +36,7 @@ export const AccountWithWalletsSchema = AccountSchema.extend({
 });
 
 /** components/schemas/AllowlistedAddress */
-export const AllowlistedAddressSchema = z.object({
+export const AllowlistedAddressSchema = z.strictObject({
   id: z.string(),
   accountId: z.string(),
   assetSymbol: z.string(),

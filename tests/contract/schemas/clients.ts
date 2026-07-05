@@ -3,7 +3,7 @@
 import { z } from 'zod';
 import { isoDateTime } from './common.js';
 
-export const ClientSchema = z.object({
+export const ClientSchema = z.strictObject({
   id: z.string(),
   legalName: z.string(),
   type: z.enum(['INDIVIDUAL', 'INSTITUTION']),

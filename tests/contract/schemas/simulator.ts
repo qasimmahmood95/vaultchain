@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { WebhookDeliverySchema } from './webhooks.js';
 
 /** components/schemas/ChainState */
-export const ChainStateSchema = z.object({
+export const ChainStateSchema = z.strictObject({
   id: z.literal('chain'),
   blockHeight: z.int(),
   simClockMs: z.string(),
@@ -15,28 +15,28 @@ export const ChainStateSchema = z.object({
 });
 
 /** POST /simulator/chain/advance 200 */
-export const ChainAdvanceResultSchema = z.object({
+export const ChainAdvanceResultSchema = z.strictObject({
   blockHeight: z.int(),
   simClockMs: z.string(),
   settled: z.int(),
 });
 
 /** POST /simulator/screening/next 200 */
-export const ScreeningQueuedSchema = z.object({
+export const ScreeningQueuedSchema = z.strictObject({
   queued: z.enum(['CLEAN', 'FLAG']),
 });
 
 /** POST /simulator/webhooks/delay 200 */
-export const WebhookDelaySetSchema = z.object({
+export const WebhookDelaySetSchema = z.strictObject({
   webhookDelayMs: z.string(),
 });
 
 /** POST /simulator/webhooks/{id}/replay 200 — creditResult null for non-deposit events. */
-export const WebhookReplayResultSchema = z.object({
+export const WebhookReplayResultSchema = z.strictObject({
   delivery: WebhookDeliverySchema,
   creditResult: z.union([
     z.null(),
-    z.object({
+    z.strictObject({
       credited: z.boolean(),
       reason: z.enum(['credited', 'already-credited', 'not-creditable']),
     }),

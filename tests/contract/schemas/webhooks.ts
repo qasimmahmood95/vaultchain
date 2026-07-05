@@ -8,7 +8,7 @@ import { isoDateTime } from './common.js';
 // — response tightening is the D25 strict-schema pass (P4).
 
 /** components/schemas/WebhookSubscription */
-export const WebhookSubscriptionSchema = z.object({
+export const WebhookSubscriptionSchema = z.strictObject({
   id: z.string(),
   url: z.string(),
   events: z.array(z.string()),
@@ -16,7 +16,7 @@ export const WebhookSubscriptionSchema = z.object({
 });
 
 /** components/schemas/WebhookDelivery — payload is the raw JSON string the signature covers. */
-export const WebhookDeliverySchema = z.object({
+export const WebhookDeliverySchema = z.strictObject({
   id: z.string(),
   subscriptionId: z.string(),
   event: z.string(),

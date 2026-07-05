@@ -5,7 +5,7 @@ import { isoDateTime } from './common.js';
 import { TransactionRawSchema } from './transactions.js';
 
 /** components/schemas/ComplianceHold */
-export const ComplianceHoldSchema = z.object({
+export const ComplianceHoldSchema = z.strictObject({
   id: z.string(),
   transactionId: z.string(),
   reason: z.string(),
@@ -22,7 +22,7 @@ export const ComplianceHoldSchema = z.object({
  * value is any JSON value (the spec's empty schema `{}`); z.json() rejects
  * `undefined`, so key presence is enforced.
  */
-export const AuditLogEntrySchema = z.object({
+export const AuditLogEntrySchema = z.strictObject({
   id: z.string(),
   actorApiKeyId: z.string().nullable(),
   actorRole: z.string().nullable(),

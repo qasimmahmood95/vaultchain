@@ -41,6 +41,7 @@ paths:
             application/json:
               schema:
                 type: object
+                additionalProperties: false
                 required: [status]
                 properties:
                   status: { type: string, const: ok }
@@ -56,6 +57,7 @@ paths:
             application/json:
               schema:
                 type: object
+                additionalProperties: false
                 required: [apiKeyId, role, clientId]
                 properties:
                   apiKeyId: { type: string }
@@ -102,6 +104,7 @@ paths:
             application/json:
               schema:
                 type: object
+                additionalProperties: false
                 required: [items, nextCursor]
                 properties:
                   items:
@@ -181,6 +184,7 @@ paths:
             application/json:
               schema:
                 type: object
+                additionalProperties: false
                 required: [items]
                 properties:
                   items:
@@ -241,6 +245,7 @@ paths:
             application/json:
               schema:
                 type: object
+                additionalProperties: false
                 required: [items]
                 properties:
                   items:
@@ -347,6 +352,7 @@ paths:
             application/json:
               schema:
                 type: object
+                additionalProperties: false
                 required: [items, nextCursor]
                 properties:
                   items:
@@ -473,6 +479,7 @@ paths:
             application/json:
               schema:
                 type: object
+                additionalProperties: false
                 required: [items, nextCursor]
                 properties:
                   items:
@@ -549,6 +556,7 @@ paths:
             application/json:
               schema:
                 type: object
+                additionalProperties: false
                 required: [items, nextCursor]
                 properties:
                   items:
@@ -598,6 +606,7 @@ paths:
             application/json:
               schema:
                 type: object
+                additionalProperties: false
                 required: [items]
                 properties:
                   items:
@@ -621,6 +630,7 @@ paths:
             application/json:
               schema:
                 type: object
+                additionalProperties: false
                 required: [items]
                 properties:
                   items:
@@ -663,6 +673,7 @@ paths:
             application/json:
               schema:
                 type: object
+                additionalProperties: false
                 required: [blockHeight, simClockMs, settled]
                 properties:
                   blockHeight: { type: integer }
@@ -791,6 +802,7 @@ paths:
             application/json:
               schema:
                 type: object
+                additionalProperties: false
                 required: [queued]
                 properties:
                   queued: { type: string, enum: [CLEAN, FLAG] }
@@ -809,6 +821,7 @@ paths:
             application/json:
               schema:
                 type: object
+                additionalProperties: false
                 required: [delivery, creditResult]
                 properties:
                   delivery: { $ref: '#/components/schemas/WebhookDelivery' }
@@ -816,6 +829,7 @@ paths:
                     oneOf:
                       - type: 'null'
                       - type: object
+                        additionalProperties: false
                         required: [credited, reason]
                         properties:
                           credited: { type: boolean }
@@ -845,6 +859,7 @@ paths:
             application/json:
               schema:
                 type: object
+                additionalProperties: false
                 required: [webhookDelayMs]
                 properties:
                   webhookDelayMs: { type: string }
@@ -925,6 +940,10 @@ components:
 
     Problem:
       type: object
+      # Response schemas are CLOSED (D25): the contract layer's zod schemas are
+      # strictObject, so the spec must forbid extra properties too — drift is
+      # then caught in BOTH directions (added fields as well as drops/renames).
+      additionalProperties: false
       description: RFC 9457 problem details
       required: [type, title, status]
       properties:
@@ -935,6 +954,7 @@ components:
 
     Client:
       type: object
+      additionalProperties: false
       required: [id, legalName, type, jurisdiction, vaspId, status, createdAt]
       properties:
         id: { type: string }
@@ -956,6 +976,11 @@ components:
         status: { type: string }
 
     AccountWithWallets:
+      # allOf composite: unevaluatedProperties (JSON Schema 2020-12) is the
+      # correct "strict" keyword here — additionalProperties: false on an allOf
+      # member forbids the OTHER member's properties. It considers everything the
+      # Account + wallets members evaluate, and rejects anything else (D25/D33).
+      unevaluatedProperties: false
       allOf:
         - $ref: '#/components/schemas/Account'
         - type: object
@@ -978,6 +1003,7 @@ components:
         balanceMinor: { type: string, pattern: '^\d+$' }
 
     Wallet:
+      unevaluatedProperties: false # allOf composite — see AccountWithWallets (D25/D33)
       allOf:
         - $ref: '#/components/schemas/WalletRaw'
         - type: object
@@ -1018,6 +1044,7 @@ components:
 
     TransactionRaw:
       type: object
+      additionalProperties: false
       description: Transaction as persisted (simulator force response)
       required: [id, walletId, type, assetSymbol, amountMinor, feeMinor, state]
       properties:
@@ -1030,6 +1057,7 @@ components:
         state: { type: string }
 
     WithdrawalDetail:
+      unevaluatedProperties: false # allOf composite — see AccountWithWallets (D25/D33)
       allOf:
         - $ref: '#/components/schemas/Transaction'
         - type: object
@@ -1055,6 +1083,7 @@ components:
 
     AllowlistedAddress:
       type: object
+      additionalProperties: false
       required: [id, accountId, assetSymbol, address, label, activatesAt, status]
       properties:
         id: { type: string }
@@ -1070,6 +1099,7 @@ components:
 
     ComplianceHold:
       type: object
+      additionalProperties: false
       required: [id, transactionId, reason, state, openedBy, createdAt]
       properties:
         id: { type: string }
@@ -1084,6 +1114,7 @@ components:
 
     AuditLogEntry:
       type: object
+      additionalProperties: false
       required: [id, actorApiKeyId, actorRole, action, entityType, entityId, before, after, createdAt]
       properties:
         id: { type: string }
@@ -1098,6 +1129,7 @@ components:
 
     WebhookSubscription:
       type: object
+      additionalProperties: false
       required: [id, url, events, createdAt]
       properties:
         id: { type: string }
@@ -1109,6 +1141,7 @@ components:
 
     WebhookDelivery:
       type: object
+      additionalProperties: false
       required: [id, subscriptionId, event, payload, signature, attempts, status]
       properties:
         id: { type: string }
@@ -1124,6 +1157,7 @@ components:
 
     ChainState:
       type: object
+      additionalProperties: false
       required: [id, blockHeight, simClockMs, frozen, webhookDelayMs, screeningNext]
       properties:
         id: { type: string, const: chain }

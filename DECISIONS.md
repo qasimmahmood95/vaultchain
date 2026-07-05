@@ -3,6 +3,20 @@
 Per the P1 working rules: where the PRD doesn't answer, make the smaller-scope choice,
 record it here, continue. None of these change the API contract in `openapi/vaultchain.yaml`.
 
+- **D33 — Strict response schemas (D25 executed): `additionalProperties: false` on flat
+  schemas, `unevaluatedProperties: false` on `allOf` composites.** (P4b, fulfilling the D25
+  standing decision.) The contract layer's zod response schemas are now `z.strictObject`
+  (extend inherits strictness), and `openapi/vaultchain.yaml` response schemas are closed to
+  match, so drift fails in BOTH directions (added fields as well as drops/renames).
+  Composites (`AccountWithWallets`, `Wallet`, `WithdrawalDetail`) use `unevaluatedProperties:
+  false`, the JSON Schema 2020-12-correct keyword — `additionalProperties: false` on an
+  `allOf` member forbids the OTHER member's properties, making the composite unsatisfiable.
+  Their base schemas (`Account`, `Transaction`, `WalletRaw`) therefore carry no closing
+  keyword in the spec; their standalone strictness is enforced by the strict zod oracle at
+  test time. The tightening surfaced two real drifts (see the drift-fix commit): the embedded
+  `ComplianceHold.transaction` and the `/simulator/tx/{id}/force` body were dumping the full
+  Prisma row (leaking internal `createdByApiKeyId`/`broadcastBlockHeight`) where the spec
+  declares the compact `TransactionRaw` — fixed server-side per D18 (spec is source of truth).
 - **D30 — The compliance gate runs serialized at the END of the strict pipeline, browser-free.**
   (P4a.) §B.4's sketch has the compliance project depending on `setup` only; the evolved
   config uses a strict project chain (D21), and the gate both consumes the global screening

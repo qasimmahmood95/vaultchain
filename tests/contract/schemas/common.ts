@@ -24,7 +24,7 @@ export const RoleSchema = z.enum(['CLIENT', 'OPERATOR', 'COMPLIANCE_OFFICER', 'A
  * components/schemas/Problem — RFC 9457 problem details.
  * `type` is `format: uri` (absolute), required with title + status.
  */
-export const ProblemSchema = z.object({
+export const ProblemSchema = z.strictObject({
   type: z.url(),
   title: z.string(),
   status: z.int(),
@@ -33,7 +33,7 @@ export const ProblemSchema = z.object({
 
 /** Cursor-paginated envelope: `{ items, nextCursor }` (nextCursor required, nullable). */
 export function page<T extends z.ZodType>(item: T) {
-  return z.object({
+  return z.strictObject({
     items: z.array(item),
     nextCursor: z.string().nullable(),
   });
@@ -41,7 +41,7 @@ export function page<T extends z.ZodType>(item: T) {
 
 /** Non-paginated list envelope: `{ items }` only. */
 export function itemsOnly<T extends z.ZodType>(item: T) {
-  return z.object({
+  return z.strictObject({
     items: z.array(item),
   });
 }

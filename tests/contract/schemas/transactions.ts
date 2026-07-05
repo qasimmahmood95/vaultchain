@@ -25,7 +25,7 @@ export const TransactionStateSchema = z.enum([
 export const TransactionTypeSchema = z.enum(['DEPOSIT', 'WITHDRAWAL']);
 
 /** components/schemas/Transaction */
-export const TransactionSchema = z.object({
+export const TransactionSchema = z.strictObject({
   id: z.string(),
   walletId: z.string(),
   type: TransactionTypeSchema,
@@ -45,7 +45,7 @@ export const TransactionSchema = z.object({
 });
 
 /** components/schemas/TransactionRaw — as persisted (simulator force response). */
-export const TransactionRawSchema = z.object({
+export const TransactionRawSchema = z.strictObject({
   id: z.string(),
   walletId: z.string(),
   type: TransactionTypeSchema,
@@ -55,13 +55,13 @@ export const TransactionRawSchema = z.object({
   state: z.string(),
 });
 
-export const ApprovalSchema = z.object({
+export const ApprovalSchema = z.strictObject({
   approverApiKeyId: z.string(),
   approverRole: RoleSchema,
   decision: z.enum(['APPROVE', 'REJECT']),
 });
 
-export const TravelRuleRecordSchema = z.object({
+export const TravelRuleRecordSchema = z.strictObject({
   direction: z.enum(['ORIGINATOR', 'BENEFICIARY']),
   payload: z.record(z.string(), z.unknown()),
 });
