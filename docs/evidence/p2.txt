@@ -40,3 +40,25 @@ exit: 0
 
 $ npx tsx scripts/check-invariant.ts
 RECONCILIATION OK: invariant holds across 170 wallets
+
+=== P3 PRE-BATCH (P2 review Majors 2-5, Minors 6-11, Nits 12-15) — gate steps 1-2 re-run ===
+captured: 2026-07-05T16:53:01Z | commit: 3639402
+
+New coverage: forced-FAILED refund (exact restoration), withdrawal-side holds,
+non-zero webhook delay, ETH normalization (D12), pagination exact boundary,
+holds 409 re-resolution, /simulator/clock/advance (D26 atomic relative advance).
+robust.ts DELETED after root-fixing the clock-rewind race it had been absorbing
+(fixture RMW -> atomic endpoint; advanceChain made transactional; absolute
+clock/set relocated to the serialized project).
+
+$ pnpm typecheck
+$ tsc --noEmit
+exit: 0
+
+$ npx playwright test  (x3: fresh, KEEP_DB, KEEP_DB — exit codes checked)
+  208 passed (28.9s)
+  208 passed (18.2s)
+  208 passed (18.0s)
+
+$ npx tsx scripts/check-invariant.ts
+RECONCILIATION OK: invariant holds across 264 wallets
