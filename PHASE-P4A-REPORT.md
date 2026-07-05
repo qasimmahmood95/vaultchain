@@ -115,7 +115,8 @@ full-pipeline runs. `flaky` counts as failing (§B.6). Writes nothing when no
   Defect-branch `gate-summary.md` (embedded) names the Travel-Rule boundary gap.
 
 Reproduce:
-```
+
+```bash
 # main — everything green, gate GREEN
 git checkout main && rm -f prisma/vaultchain.db
 pnpm typecheck && npx playwright test && cat gate-summary.md

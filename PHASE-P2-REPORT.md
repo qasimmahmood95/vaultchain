@@ -7,7 +7,9 @@
 ## 1. What was built
 
 ### P2a — fixtures (single-threaded, then FROZEN)
+
 `tests/fixtures/` per §B.2 — the only cross-suite shared code:
+
 - **auth.fixtures.ts** — worker-scoped `APIRequestContext` per role; deliberate
   maker/checker split (`asOperatorA`/`asOperatorB`) and two tenant-bound client keys
   (`asClientA`/`asClientB`) for cross-tenant probes.
@@ -28,6 +30,7 @@
   (`--workers=1`) because the sim clock is platform-global state (D21).
 
 ### P2b — two parallel subagents (isolated worktrees, own port + own SQLite file)
+
 - **CONTRACT** (174 tests): hand-written **zod v4 schemas re-encoding
   `openapi/vaultchain.yaml`** (never generated, never importing `src/` — an independent
   oracle), `toMatchSchema` matcher with pretty-printed zod issues, response-shape +
@@ -41,6 +44,7 @@
   full audit-action trail for the withdrawal path.
 
 ### The parallel-build story actually worked — including its failure mode
+
 The workflow agent hit a **load-breaking fixture defect** (`workerRole` used an
 identifier first param; Playwright requires a destructuring pattern — every fixtures
 import threw). Per the territory rules it did NOT edit the frozen fixtures: it shimmed
@@ -50,12 +54,14 @@ and de-shimmed the workflow suite afterwards (9 import lines repointed, shim del
 22/22 re-verified). Exactly the §B.0 independence model under stress.
 
 ### Integration fixes (main session)
+
 - **D18, second occurrence** (found by the contract agent): the allowlist route schema
   lacked the spec's `assetSymbol` enum (unknown symbol → handler 404 instead of
   validation 400). Fixed per the standing D18 decision + probe added beside the original
   D18 regression test.
 
 ## 2. What was deferred
+
 - **UI journeys, storageState, browser install** → P3 (D20/D23).
 - **Compliance gate suite + custom reporter + CI** → P4. BUG-002/003/006 are deliberately
   uncaught in P2 (their primaries are the gate; verified still-uncaught on `v1-defects`).
@@ -67,6 +73,7 @@ and de-shimmed the workflow suite afterwards (9 import lines repointed, shim del
 - Deferral register additions: see §5 triage table.
 
 ## 3. New DECISIONS.md entries (summary)
+
 D20 setup writes `.auth/identity.json`, not storageState (no UI yet) · D21 time-sensitive
 assertions only in the serialized workflow project · D22 forward-only global sim clock;
 fault-only fixture teardown · D23 no browser binaries in P2 · D24 omnibus attribution =
@@ -74,6 +81,7 @@ post-suite invariant sweep; BUG-001's practical catch is the exact half-even fee
 (BUGS.md updated to match) · D18 re-applied to the allowlist route (2nd occurrence).
 
 ## 4. Evidence (committed)
+
 - **`docs/evidence/p2.txt`** (main): typecheck exit 0; **176 contract (parallel, 6
   workers) + 22 workflow (serialized) — all green**; post-suite reconciliation invariant
   across 69 wallets; P1 smoke still green.
@@ -85,7 +93,8 @@ post-suite invariant sweep; BUG-001's practical catch is the exact half-even fee
   BUG-002/003/006 uncaught **by design** (P4 gate). 171+19 unrelated tests green there.
 
 Reproduce:
-```
+
+```bash
 # main — everything green
 git checkout main && rm -f prisma/vaultchain.db
 pnpm typecheck && pnpm test && npx tsx scripts/check-invariant.ts
@@ -103,15 +112,18 @@ pnpm test:workflow   # 3 fails: cooling-off (BUG-004), replay (BUG-007), 15.00 f
 > Critical. Verbatim findings below; triage table follows.
 
 ### Critical
+
 1. **The workflow project is not actually serialized — the PRD's canonical invocation runs it red. Empirically confirmed: 3/22 fail.** `playwright.config.ts:39-45` claims `fullyParallel: false` is "belt-and-braces: within-file serial even if someone runs this project with more than one worker." That claim is false: `fullyParallel: false` only serializes tests *within* a file; separate spec files still fan out across the worker pool. The only real enforcement of D21 is the `--workers=1` flag buried in the `package.json` scripts. The PRD's documented one-command run (`npx playwright test`) — and the plain `npx playwright test --project=workflow` any reviewer of this portfolio will type — bypass that flag. I ran `npx playwright test --project=workflow` on a fresh DB: **3 failed** (idempotency webhook replay, money-precision 30.00 control, screening-hold — flagged deposit credited `750.00` because another file's `advanceBlocks` consumed/pre-empted its screening). Time-sensitive assertions racing on the global clock is exactly the flake class §B.6 bans, and D21 does not license leaving the standard entrypoint broken. **Direction:** Playwright 1.61 supports per-project `workers` — add `workers: 1` to the workflow project and correct the comment.
 
 ### Major
+
 2. **`/simulator/tx/{id}/force` is tested by nothing — the D14 refund path that moves money is unpinned.** No contract shape test (spec'd 200/409/404 uncovered; `TransactionRawSchema` only exercised indirectly) and no workflow test for the FAILED lifecycle: a compensating-credit bug (e.g. refunding amount without fee) would break the ledger invariant with no test failing before the post-suite sweep. FAILED is in PRD §A.3.2 and no P4 exclusion covers it. **Direction:** workflow test — broadcast, force FAILED, assert exact balance restoration + refund audit entries; contract test for the envelope.
 3. **Withdrawal-side screening holds are untested; `screening-hold.spec.ts` covers deposits only.** `screenAndBroadcast` (FLAG → HELD, release → resume with the debit on resume) is a separate code path; P4 owns hold-release *authz*/*audit*, not the withdrawal-hold lifecycle. A bug that debited before the hold, or double-debited on release, is invisible. **Direction:** mirror the two deposit-hold tests for a withdrawal.
 4. **Delayed webhook delivery (D10) is never exercised with a non-zero delay.** Only a shape test posting `ms: '0'` exists; the PENDING→DELIVERED transition driven by `dueAtSimMs`/`flushDueWebhooks` has no test. §A.0 justifies webhooks with "replay/**delay**"; replay is covered, delay is not, and it isn't on P4's list. **Direction:** serialized workflow test — set delay, trigger event, assert PENDING with future dueAtSimMs, advance clock, assert DELIVERED.
 5. **ETH address normalization is untested — a PRD-named edge case with no owner phase.** §A.6 lists "ETH checksummed vs lowercase"; D12 fixes platform behaviour; every allowlist test uses opaque GBPX strings. **Direction:** one workflow pair on an ETH wallet: allowlist mixed-case, withdraw lowercase → 201; different-cased non-allowlisted → 422.
 
 ### Minor
+
 6. **The `/simulator/reset` shape test lives in the fully-parallel contract project and drags ~150 lines of recovery machinery behind it** (`support/robust.ts`); its one-shot recovery leaves a second-order re-poisoning window, and the obligation to use `robust.ts` helpers for funds-dependent contract tests is documented nowhere in the fixtures README. Moving the one test to the serialized workflow project deletes the hazard and `robust.ts` with it.
 7. **Chain fixture teardown gap: `frozen` is not reset.** No P2 test calls `freeze()`, but the first P3/P4 test that freezes and fails mid-test leaves the global clock frozen for the rest of the run. Track `freezeTouched` and unfreeze, or drop `freeze()` from the surface until needed.
 8. **Contract schemas cannot detect additive drift.** Non-strict `z.object()` means server-added fields pass silently; only drops/renames fail. Faithful to the spec (responses don't set additionalProperties:false), but §B.3 sells this layer as the drift oracle. Consider `z.strictObject` + tightening the spec.
@@ -120,6 +132,7 @@ pnpm test:workflow   # 3 fails: cooling-off (BUG-004), replay (BUG-007), 15.00 f
 11. **`shared.ts` memoizes a rejected promise** — one transient failure becomes ~dozens of authz-matrix failures in that worker. Clear the memo on rejection.
 
 ### Nit
+
 12. Stale comment in `tests/workflow/support/helpers.ts:4-6` referencing the deleted `world.js` shim.
 13. Dead export `WebhookEventSchema` in `tests/contract/schemas/webhooks.ts`.
 14. `chain.state()` skips the ok-check — non-2xx surfaces as a cryptic JSON.parse error.
@@ -145,7 +158,8 @@ no `waitForTimeout`/`Date.now()` anywhere in tests/.
 | 12–15 | Nit | Not fixed. Cosmetic batch whenever files are next open. |
 
 ## 6. Commands for you to poke the result
-```
+
+```bash
 pnpm test                                  # = npx playwright test: setup -> contract (parallel) -> workflow (serialized)
 pnpm test:contract                         # contract only
 npx playwright test --project=workflow --no-deps   # fast workflow-only iteration
@@ -159,6 +173,7 @@ npx playwright test --project=workflow --no-deps # 3 fails: BUG-004, BUG-007, BU
 ```
 
 ## 7. Phase P2 Definition-of-Done check
+
 - [x] Fixtures built first, documented, frozen; suites share nothing but `fixtures/`.
 - [x] `contract/` and `workflow/` built by two independent agents; merged; **green on
       `main`** locally (evidence captured).

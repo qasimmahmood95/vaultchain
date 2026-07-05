@@ -33,8 +33,8 @@ record it here, continue. None of these change the API contract in `openapi/vaul
   accepts HTML form posts. `SameSite=Lax` on the cookie is therefore load-bearing (the
   CSRF surface is confined to `/ui`); this is documented at the set-cookie site and pinned
   by an API probe (a cookie without `X-Api-Key` gets 401 on a JSON route).
-- **D28 — Settlement path uses compare-and-set transitions.** (P3 review Major 3 + Minor 2
-  + Nit 2.) `advanceChain`'s post-transaction settlement loop is reachable from
+- **D28 — Settlement path uses compare-and-set transitions.** (P3 review Major 3, Minor 2,
+  Nit 2.) `advanceChain`'s post-transaction settlement loop is reachable from
   fully-parallel contract workers, so its state changes are now CAS (`claimTransition` /
   state-guarded `updateMany`): only the winner screens/confirms a tx, confirmations are
   only ever raised (no stale-height overwrite), `forceTxOutcome`'s terminal check moved

@@ -1,11 +1,12 @@
 # P4 Kickoff — read this first
 
-> **FICTIONAL system-under-test.** Single-file resume pointer for Phase P4 (compliance gate
-> + reporter + CI + strict schemas + agents panel + README). Everything below is derived
+> **FICTIONAL system-under-test.** Single-file resume pointer for Phase P4 (compliance
+> gate + reporter + CI + strict schemas + agents panel + README). Everything below is derived
 > from `PRD.md` §C.2/P4·§B.3·§B.5·§B.6·§D, gitignored `BUGS.md` (the answer key),
 > `DECISIONS.md`, and `PHASE-P3-REPORT.md`. This file is the map; those are the territory.
 
 ## Where things stand (start of P4)
+
 - **`main`** = the FIXED platform. Full pipeline **222 tests, green ×4** (setup → contract
   parallel → workflow serialized → ui serialized/chromium). Reconciliation invariant holds.
   Evidence: `docs/evidence/p1.txt … p3.txt`.
@@ -18,8 +19,10 @@
   After any `main` change: `git checkout defects-planted && git rebase main && git tag -f v1-defects`.
 
 ## ⚠ GATE ZERO — do this BEFORE writing any `@compliance` test (DECISIONS D28)
+
 The P4 audit-completeness and webhook-count assertions depend on the settlement
 compare-and-set landing in P1-review Stage 1. **Verify it is present first:**
+
 - `src/services/transitions.ts` exports `claimTransition` (state-guarded `updateMany`, audits only the winner).
 - `src/services/simulator.ts` `advanceChain` uses `claimTransition` for settle + `updateMany({confirmations:{lt}})`; `forceTxOutcome` runs inside one `$transaction`.
 - `src/services/deposits.ts` `screenAndSettleDeposit` CAS-claims `PENDING_CONFIRMATION → SCREENING` and returns a boolean.
@@ -29,6 +32,7 @@ audit rows / `withdrawal.confirmed` webhooks under parallel advances and will fl
 the assertions P4 is about to write.
 
 ## P4 build order (compliance FIRST, per the owner's Stage-2 note)
+
 1. **`tests/compliance/` — the `@compliance` gate suite** (its own project, separate CI job,
    §B.3). Encode the RULES at their boundaries, not examples:
    - **Travel Rule** (`travel-rule.spec.ts`): boundary triplet `T-1 / T / T+1` **in GBPX**
@@ -70,6 +74,7 @@ the assertions P4 is about to write.
    BUGS.md reveal table).
 
 ## Completion gate (run in this exact order, then STOP)
+
 1. **Evidence** — full pipeline + typecheck on `main` → `docs/evidence/p4.txt`, committed.
 2. **Defect-branch sync** — rebase `defects-planted` onto `main`; run the suite there; the
    `@compliance` gate goes RED on **BUG-002/003/005/006**, P2 primaries (001/004/007) still
@@ -80,6 +85,7 @@ the assertions P4 is about to write.
 5. **Report** — `PHASE-P4-REPORT.md`.
 
 ## Ops gotchas (learned this build — do not relearn)
+
 - **Never manually background `scripts/test-serve`.** Killing the `npx` wrapper orphans the
   node server on **:3000**, and `reuseExistingServer` then reuses the stale one — poisons
   defect-branch runs (symptom: `Device or resource busy` on the db + phantom setup
@@ -94,10 +100,12 @@ the assertions P4 is about to write.
   withdrawal (settlement-immune), not a pending deposit.
 
 ## Commands
-```
+
+```bash
 npx playwright test                                   # full pipeline (one command)
 npx playwright test --project=compliance --no-deps    # (once P4 adds it) gate only
 git checkout v1-defects && rm -f prisma/vaultchain.db && npx playwright test   # watch the catches
 pnpm seed && npx tsx scripts/check-invariant.ts        # reconciliation, server-free
 ```
+
 Seed keys are printed by `pnpm seed` (e.g. compliance officer `vck_compliance_000000000000`).

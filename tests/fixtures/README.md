@@ -17,6 +17,7 @@ report needed changes to the integrating session; they never edit this directory
 ## Fixtures and their contracts
 
 ### Auth (worker-scoped `APIRequestContext` per role) — `auth.fixtures.ts`
+
 `asAdmin`, `asOperatorA` (default **maker**), `asOperatorB` (default distinct
 **checker**), `asCompliance`, `asClientA` (tenant: seed client #1, Aldgate),
 `asClientB` (tenant: seed client #2, Wren & Hart — for cross-tenant probes),
@@ -25,6 +26,7 @@ Keys are the deterministic mock keys from `scripts/seed-lib.ts`; the server must
 be seeded (the `webServer` command does this).
 
 ### `chain` (test-scoped) — `chain-clock.fixture.ts`
+
 `state()`, `advanceBlocks(n)`, `advanceClockMs(ms)`, `setClockMs(ms)`,
 `freeze()`, `queueScreening('CLEAN'|'FLAG')`, `replayWebhook(deliveryId)`,
 `setWebhookDelayMs(ms)`, `reset()`.
@@ -39,6 +41,7 @@ Contract tests may cause clock jumps (via builders) but must never assert on
 clock position.
 
 ### `build` (test-scoped) — `builders/index.ts`
+
 Seeds via the **real API** (admin/operator contexts), namespaced by
 `uniqueRef()` so parallel tests are isolated by construction:
 `client()`, `account({assets, segregation, clientId?})` (accounts get the

@@ -12,6 +12,7 @@
     "dev": "tsx watch src/server.ts",
     "start": "tsx src/server.ts",
     "typecheck": "tsc --noEmit",
+    "lint:md": "markdownlint-cli2",
     "db:migrate": "prisma migrate deploy",
     "db:generate": "prisma generate",
     "seed": "tsx scripts/seed.ts",
@@ -31,6 +32,7 @@
   "devDependencies": {
     "@playwright/test": "^1.61.1",
     "@types/node": "^22.18.0",
+    "markdownlint-cli2": "^0.23.0",
     "prisma": "^6.16.0",
     "tsx": "^4.20.0",
     "typescript": "^5.9.0",

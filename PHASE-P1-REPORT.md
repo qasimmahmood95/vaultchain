@@ -7,6 +7,7 @@
 ## 1. What was built (on `main`)
 
 **Platform (Fastify + Prisma/SQLite, strict TypeScript, ESM):**
+
 - **Domain model** — all §A.1 entities in `prisma/schema.prisma` (17 models): Client, Account,
   Asset, Wallet, LedgerEntry, Transaction, ApprovalPolicy, Approval, AllowlistedAddress,
   ComplianceHold, TravelRuleRecord, AuditLogEntry, ApiKey, WebhookSubscription,
@@ -83,7 +84,8 @@ D16 CLIENT `GET /clients` self-scoped · D17 default dual-approval policy on acc
   the repro harness proving all seven `BUGS.md` Reproduce recipes (repro exit 0).
 
 Reproduce locally:
-```
+
+```bash
 # main (fixed): full suite green
 git checkout main
 rm -f prisma/vaultchain.db && npx prisma migrate deploy
@@ -114,6 +116,7 @@ no `Date.now()` in domain logic, and obviously-fictional seed data.
 **Critical:** None. &nbsp; **Major:** None.
 
 **Minor**
+
 1. `src/routes/accounts.ts:26` — `POST /accounts` `assets` item schema diverges from the OpenAPI contract. Route declares `assets.items: { type: 'string' }` (no enum); `openapi/vaultchain.yaml:146` requires `enum: [BTC, ETH, GBPX]`. An unknown symbol isn't rejected at validation (400) as the spec implies; the handler loops and throws `notFound` → 404. Direction: add the enum to the route schema (400) or relax the spec — one source of truth.
 2. `src/services/simulator.ts:101-104` — `forceTxOutcome('CONFIRMED')` can confirm a withdrawal that was never broadcast/debited (guard only rejects already-terminal states). Produces a physically impossible state + audit trail (`TRANSACTION_CONFIRMED` with no `TRANSACTION_BROADCAST`). Admin-only escape hatch, so arguably acceptable. Direction: restrict CONFIRMED force to `PENDING_CONFIRMATION` (mirror the FAILED path's `wasDebited` reasoning) or document intent.
 3. `src/services/withdrawals.ts:190-227` — `attachTravelRule` doesn't validate that the tx actually requires Travel Rule and always writes both records; spurious records can accumulate on domestic/below-threshold transfers, weakening the audit signal. No gate break. Direction: reject (422) when not cross-VASP/below threshold, or note the permissiveness is intentional.
@@ -121,6 +124,7 @@ no `Date.now()` in domain logic, and obviously-fictional seed data.
 5. `src/routes/webhooks.ts:64-74` — `GET /webhooks/deliveries` ignores the documented `cursor`/`limit` and returns unbounded `{items}` with no `nextCursor`, unlike every other list endpoint (spec-consistent, but inconsistent with the platform's own pagination convention). Direction: apply cursor pagination or drop the unused query params.
 
 **Nit**
+
 1. `services/webhooks.ts:35` / `simulator.ts:150` / `holds.ts:54` — `new Date()` for `deliveredAt`/`resolvedAt` **metadata** columns (not domain time; gating correctly uses `simNow`). A `Date.now()`-scanning reviewer will hit them; a one-line "wall-clock metadata" comment would preempt the question.
 2. `routes/withdrawals.ts:110` / `routes/clients.ts:58` — CLIENT tenant filter uses `clientId ?? ''`; the fallback is dead (a CLIENT key always has a `clientId`). Empty-string sentinel is a slight smell.
 3. `services/deposits.ts:86` — `creditDeposit` accepts `CREDITED` as a "creditable" input state (intentional: lets a replayed webhook fall through to the `ProcessedEvent` no-op). Correct; reads oddly; comment mitigates.
@@ -130,8 +134,8 @@ _No references to any real custody firm or real person were found._
 
 ### My recommended disposition (not applied — your call)
 
-| # | Sev | Recommendation | Why |
-|---|---|---|---|
+| # | Recommendation | Why |
+|---|---|---|
 | Minor 1 | ▲ **Fix on `main` before P2** | **Genuine spec/impl drift.** A P2 contract test asserting "invalid asset → 400" will legitimately go **red on `main`**, breaking the "main green" DoD. Either align the route (add enum → 400) or relax the spec. This is the one finding that affects the two-branch model. |
 | Minor 4 | ▲ **Fix on `main`** (recommend) | Real **tenant-isolation** gap — same class as the platform's 404-scoping discipline. Low likelihood, but security-relevant; the 4-line ownership re-check is cheap. |
 | Minor 2 | Defer / document | Admin-only simulator escape hatch; low blast radius. Small guard or a doc note in P2. |
@@ -154,7 +158,7 @@ Typecheck + smoke re-run appended to `docs/evidence/p1.txt`; `defects-planted` r
 
 ## 6. Commands for you to run and poke the result
 
-```
+```bash
 # 1. Fixed platform, one command per PRD §D.1 intent (server on :3000):
 git checkout main
 rm -f prisma/vaultchain.db && npx prisma migrate deploy && pnpm seed

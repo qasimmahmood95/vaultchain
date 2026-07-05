@@ -1,0 +1,24 @@
+{
+  // Markdown lint config for the repo's own docs (PRD, DECISIONS, phase reports,
+  // READMEs). Structural rules are enforced; four rules are disabled because they
+  // fight this repo's *deliberate* authoring style, not because of real defects:
+  "config": {
+    "default": true,
+    "MD013": false, // line-length: prose is hand-wrapped ~95 cols; tables/code exceed 80 by design
+    "MD025": false, // single-h1: PRD.md uses A/B/C/D + appendices as part-level H1 dividers on purpose
+    "MD036": false, // emphasis-as-heading: intentional bold inline labels (appendix link groups, finding tags)
+    "MD029": false, // ol-prefix: phase reports number findings CONTINUOUSLY across the Critical/Major/Minor/Nit sub-headings (1..15), and the triage tables reference those global numbers — a scheme ordered-list linting can't represent
+    "MD060": false // table pipe spacing: standard `| padded |` cells + `|---|` delimiters are idiomatic GFM
+  },
+  "globs": ["**/*.md"],
+  // Respect .gitignore, so the gitignored answer key (BUGS.md), the generated
+  // gate-summary.md, node_modules, and report artifacts are never linted.
+  "gitignore": true,
+  "ignores": [
+    // The build-process agents are deliberately never modified (PRD §D.3), so they
+    // are excluded from lint (their YAML frontmatter otherwise trips MD041). The P4b
+    // portfolio agent panel is NOT excluded — it will be linted when it lands.
+    ".claude/agents/code-reviewer.md",
+    ".claude/agents/adversarial-auditor.md"
+  ]
+}

@@ -58,7 +58,7 @@ proposed feature has no entry in the right-hand column, it does not get built.
 
 ## A.1 Domain model
 
-```
+```text
 Client ──1:N── Account ──1:N── Wallet ──1:N── Transaction
   │               │                              │
   │               ├── ApprovalPolicy             ├── Approval (N per withdrawal)
@@ -141,13 +141,14 @@ ChainState / SimulatorState (single-row control plane)
 
 ### A.3.1 Deposit
 
-```
+```text
 DETECTED ──> PENDING_CONFIRMATION ──(confirmations ≥ required)──> SCREENING
                                                                     │
                                               (clean) ──> CREDITED  │
                                               (flag)  ──> HELD ──(release)──> CREDITED
                                                               └────(reject)──> REJECTED
 ```
+
 - Confirmations advance **only** via the simulator (`POST /simulator/chain/advance`),
   never wall-clock. Credit writes a `LedgerEntry` and an `AuditLogEntry`.
 - Idempotency: a deposit is credited **exactly once** per on-chain event, keyed by
@@ -155,7 +156,7 @@ DETECTED ──> PENDING_CONFIRMATION ──(confirmations ≥ required)──> 
 
 ### A.3.2 Withdrawal
 
-```
+```text
 DRAFT ──> PENDING_APPROVAL ──(N distinct approvals, maker≠checker)──> APPROVED
    │             │                                                       │
    │             └──(reject / expire)──> REJECTED / EXPIRED              ▼
@@ -170,6 +171,7 @@ DRAFT ──> PENDING_APPROVAL ──(N distinct approvals, maker≠checker)─�
                                                                                         CONFIRMED
                                                                      (sim fault)──> FAILED
 ```
+
 Gates, in order: **allowlist** (target must be active) → **approval policy**
 (threshold, N approvals, maker≠checker) → **Travel Rule** (payload required at/above
 threshold for cross-VASP) → **screening** → broadcast → confirmations.
@@ -321,7 +323,7 @@ suite advances the world explicitly and asserts on the resulting state.
 
 ## B.1 Repository layout
 
-```
+```text
 vaultchain/
 ├─ src/                      # the platform (Phase P1) — owned, not shared with test layers
 ├─ prisma/                   # schema + migrations
@@ -432,7 +434,7 @@ Rationale: **projects** isolate the layers and let CI target them individually; 
 Jobs, with the compliance gate as a **separate required job** and a merge step that
 stitches sharded blobs into one HTML report.
 
-```
+```text
 lint ─┐
       ├─> typecheck ─┬─> api-contract ───────────────┐
                      ├─> api-workflow ───────────────┤
@@ -533,12 +535,14 @@ lives only on `defects-planted` / `v1-defects` (§C.0). **Evidence files under
 build history and are intentionally *not* gitignored.
 
 ### Phase P1 — Platform core + seed + simulator
+
 Build the **correct** `src/` (Fastify app, Prisma schema + migrations, domain services, all
 endpoints in §A.4), the `/simulator` control plane, both seed scripts, and
 `openapi/vaultchain.yaml` — **on `main`, with the defects fixed**. Then, as the **final P1
 step**, cut the **`defects-planted`** branch and plant the seven defects there as **one
 commit per bug, each message referencing its `BUG-00x` ID**; tag the tip `v1-defects`.
 `main` is never knowingly shipped with a planted defect.
+
 - **DoD (on `main`):** server boots via `docker compose up`; `openapi.yaml` validates; seed
   runs deterministically; `/simulator` advances chain/clock; **typecheck passes**; a smoke
   script exercising one deposit + one withdrawal end-to-end is captured to evidence.
@@ -546,9 +550,11 @@ commit per bug, each message referencing its `BUG-00x` ID**; tag the tip `v1-def
   *(No Playwright suites yet — output captured is the smoke script + typecheck.)*
 
 ### Phase P2 — Fixtures, then API test layers (parallelisable)
+
 **P2a (serial, first):** build everything in `tests/fixtures/` (§B.2) and the `setup`
 project. **P2b (parallel):** with fixtures frozen, `contract/` and `workflow/` can be
 built by **two independent agents/sessions** — they share only `fixtures/`.
+
 - **DoD:** fixtures typecheck and are documented; `contract/` and `workflow/` **run green
   on `main`** (fixed platform) locally and in CI. The same suites, run against the
   `v1-defects` tag, go **red** on their target defects (BUG-001/004/005/007 — these four have
@@ -558,15 +564,19 @@ built by **two independent agents/sessions** — they share only `fixtures/`.
   `main`, output captured.**
 
 ### Phase P3 — UI + journeys
+
 Build `tests/ui/` (login, approval queue, transaction search) against API-seeded state and
 the shared `storageState`. Add `data-testid`s to templates as needed.
+
 - **DoD:** UI journeys run green and sharded in CI; traces attach on retry; **full suite +
   typecheck pass, output captured.**
 
 ### Phase P4 — Compliance gate + CI + README polish
+
 Build `tests/compliance/`, the custom reporter, the full `.github/workflows/ci.yml`
 (incl. the required gate job + shard merge), the `.claude/agents/` panel + CI review-gate
 pattern (§D.3), and the README (§D.1).
+
 - **DoD:** on `main`, `compliance-gate` is a **required check and is green**; run against
   the `v1-defects` tag it goes **red** on exactly the four `@compliance` cases — BUG-002
   (dual-approval), BUG-003 (Travel-Rule), BUG-005 (segregation of duties), BUG-006
@@ -672,6 +682,7 @@ bodies, vendor engineering blogs, and official Playwright/Claude Code docs). Reg
 detail is kept generic; nothing here is legal advice.
 
 **Custody domain — wallet segregation & operations**
+
 - [Fidelity Digital Assets — The Omnibus Model for Custody](https://www.fidelitydigitalassets.com/research-and-insights/omnibus-model-custody)
 - [Fortris — Omnibus vs segregated accounts in digital asset management](https://www.fortris.com/blog/omnibus-vs-segregated-account-digital-assets)
 - [BitGo — Custodial wallets for institutions](https://www.bitgo.com/products/custody-wallets/)
@@ -679,6 +690,7 @@ detail is kept generic; nothing here is legal advice.
 - [KPMG — Evaluating custody of digital assets (PDF)](https://kpmg.com/kpmg-us/content/dam/kpmg/frv/pdf/2022/hot-topic-evaluating-custody-of-digital-assets.pdf)
 
 **FATF Travel Rule (Recommendation 16) — VASP originator/beneficiary data & thresholds**
+
 - [FATF — Best Practices: Travel Rule Supervision, June 2025 (PDF)](https://www.fatf-gafi.org/content/dam/fatf-gafi/recommendations/Best-Practices-Travel-Rule-Supervision.pdf)
 - [Sumsub — FATF Travel Rule: Crypto Compliance in 2026](https://sumsub.com/blog/what-is-the-fatf-travel-rule/)
 - [Elliptic — What is the Travel Rule?](https://www.elliptic.co/blockchain-basics/what-is-the-travel-rule)
@@ -688,6 +700,7 @@ detail is kept generic; nothing here is legal advice.
 - [Notabene — What is the Crypto Travel Rule?](https://notabene.id/crypto-travel-rule-101/what-is-the-crypto-travel-rule)
 
 **Playwright + TypeScript test architecture (2026)**
+
 - [Playwright — Best Practices](https://playwright.dev/docs/best-practices)
 - [Playwright — Test sharding](https://playwright.dev/docs/test-sharding)
 - [Playwright — Reporters](https://playwright.dev/docs/test-reporters) · [Reporter API](https://playwright.dev/docs/api/class-reporter)
@@ -697,6 +710,7 @@ detail is kept generic; nothing here is legal advice.
 - [ScrollTest — API contract testing with Playwright: REST + UI in one test](https://scrolltest.com/api-contract-testing-playwright-rest-ui-one-test/)
 
 **Claude Code subagents**
+
 - [Claude Code Docs — Create custom subagents](https://code.claude.com/docs/en/sub-agents)
 
 ---
@@ -716,4 +730,3 @@ detail is kept generic; nothing here is legal advice.
   compliance officer.
 - **Fake-chain clock / simulator** — the deterministic control plane that advances
   confirmations and time so async flows can be tested without waiting.
-```
