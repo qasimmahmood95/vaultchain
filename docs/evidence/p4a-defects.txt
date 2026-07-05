@@ -1,0 +1,102 @@
+================================================================
+PHASE P4a EVIDENCE — defects-planted / v1-defects
+The @compliance gate goes RED on its four cases; total map = 12.
+FICTIONAL system-under-test; defects are planted on purpose.
+================================================================
+
+--- branch shape ---
+defects-planted: dda4142 = main (a793626) + 12 commits (7x BUG-00x + 5 evidence)
+
+--- protocol note ---
+Playwright skips dependent projects when a dependency fails, so after the
+bare run (contract fails on BUG-005) each remaining project runs --no-deps
+against the fresh-seeded webServer (same protocol as p2/p3-defects).
+
+--- bare run: contract (parallel) ---
+result: 5 failed / 178 passed (exit 1) — the SAME 5 BUG-005 authz rows:
+  [contract] › tests\contract\authz-matrix.spec.ts:423:5 › POST /holds/{id}/release as operatorA -> 403 
+  [contract] › tests\contract\authz-matrix.spec.ts:423:5 › POST /holds/{id}/release as operatorB -> 403 
+  [contract] › tests\contract\authz-matrix.spec.ts:423:5 › POST /holds/{id}/release as admin -> 403 
+  [contract] › tests\contract\authz-matrix.spec.ts:423:5 › POST /holds/{id}/reject as operatorA -> 403 
+  [contract] › tests\contract\authz-matrix.spec.ts:423:5 › POST /holds/{id}/reject as admin -> 403 
+
+--- workflow --no-deps (serialized) ---
+result: 3 failed / 27 passed (exit 1) — BUG-004, BUG-007, BUG-001:
+  [workflow] › tests\workflow\allowlist-cooling-off.spec.ts:13:3 › allowlist cooling-off › withdrawal inside the cooling-off window is 422; after the sim clock passes it, the same withdrawal succeeds 
+  [workflow] › tests\workflow\idempotency.spec.ts:53:3 › idempotency › webhook replay: a re-delivered deposit.detected does NOT credit the deposit twice 
+  [workflow] › tests\workflow\money-precision.spec.ts:31:5 › money precision › GBPX withdrawal of 15.00: fee is exactly 0.02 (1.5 minor rounds up to even 2) 
+
+--- ui --no-deps (serialized, chromium) ---
+result: 9 passed (exit 0) — the UI layer stays branch-neutral by design.
+
+--- compliance --no-deps (serialized) — THE GATE ---
+result: 4 failed / 5 passed (exit 1) — RED on exactly the four gate cases:
+  [compliance] › tests\compliance\audit-completeness.spec.ts:45:1 › deposit with a screening hold: every transition audited exactly once — the release included @compliance 
+  [compliance] › tests\compliance\dual-approval.spec.ts:25:1 › dual approval under concurrency: a simultaneous volley (maker + duplicate checker) cannot mint APPROVED @compliance 
+  [compliance] › tests\compliance\segregation-of-duties.spec.ts:24:1 › API surface: only the compliance officer resolves a hold — release AND reject @compliance 
+  [compliance] › tests\compliance\travel-rule.spec.ts:52:1 › T: exactly 1000.00 cross-VASP cannot leave TRAVEL_RULE_CHECK without originator AND beneficiary data @compliance 
+
+failure -> defect mapping (each fails for its OWN planted reason):
+  dual-approval volley statuses [201,201,403] != [201,403,409]  -> BUG-002 (duplicate checker double-counted; no unique constraint/txn)
+  travel-rule T: state PENDING_CONFIRMATION != TRAVEL_RULE_CHECK -> BUG-003 (exactly-1000.00 broadcast with NO TravelRuleRecord; > vs >=)
+  SoD API: operator release -> 200 != 403                        -> BUG-005 (denyRole('CLIENT') negative guard; gate reinforcement)
+  audit: hold trail ['HOLD_OPENED'] missing 'HOLD_RELEASED'      -> BUG-006 (release audit sits in the reject-only branch)
+BUG-002/003/006 caught for the FIRST time (P4 gate primaries);
+BUG-005 reinforced (primary catch remains the P2 contract authz-matrix).
+
+--- total mapped failure map ---
+contract 5 (BUG-005) + workflow 3 (BUG-001/004/007) + compliance 4 (BUG-002/003/005/006) = 12
+previous map was 8: the +4 are exactly the commissioned gate cases.
+
+--- gate-summary.md (defect branch, compliance run) ---
+# VaultChain compliance gate summary
+
+> Emitted by `reporters/compliance-reporter.ts`. Deterministic by design: no
+> timestamps or durations — an identical run produces identical bytes.
+
+**GATE: RED** — 4 failing assertion(s) / 4 gap(s) across 9 assertion run(s).
+
+## TR-16-BOUNDARY
+
+Travel Rule — originator + beneficiary data required at/above the 1000.00 fiat threshold (PRD §A.3.3)
+
+- Status: **FAIL**
+- Assertions run: 3 (1 failed)
+- Travel-Rule coverage: 2/3 boundary cases — MISSING at T=1000.00
+  - ✓ [T-1=999.99] T-1: a cross-VASP transfer of 999.99 proceeds to broadcast without a Travel Rule record — `tests/compliance/travel-rule.spec.ts:21`
+  - ✗ [T=1000.00] T: exactly 1000.00 cross-VASP cannot leave TRAVEL_RULE_CHECK without originator AND beneficiary data — `tests/compliance/travel-rule.spec.ts:52`
+  - ✓ [T+1=1000.01] T+1: 1000.01 cross-VASP is gated identically — record required before broadcast — `tests/compliance/travel-rule.spec.ts:111`
+
+## MC-DUAL-APPROVAL
+
+Dual approval — N distinct non-maker approvers; maker≠checker holds under concurrency (PRD §A.3.2)
+
+- Status: **FAIL**
+- Assertions run: 1 (1 failed)
+  - ✗ dual approval under concurrency: a simultaneous volley (maker + duplicate checker) cannot mint APPROVED — `tests/compliance/dual-approval.spec.ts:25`
+
+## SOD-HOLD-RESOLUTION
+
+Segregation of duties — only a compliance officer resolves screening holds, on every surface (PRD §A.4)
+
+- Status: **FAIL**
+- Assertions run: 2 (1 failed)
+  - ✗ API surface: only the compliance officer resolves a hold — release AND reject — `tests/compliance/segregation-of-duties.spec.ts:24`
+  - ✓ UI surface: the admin-UI resolve form is refused for every non-compliance session — `tests/compliance/segregation-of-duties.spec.ts:74`
+
+## AUD-COMPLETENESS
+
+Audit completeness — every state transition audited with actor + before/after, exactly once (PRD §A.1)
+
+- Status: **FAIL**
+- Assertions run: 3 (1 failed)
+  - ✗ deposit with a screening hold: every transition audited exactly once — the release included — `tests/compliance/audit-completeness.spec.ts:45`
+  - ✓ withdrawal through approval, Travel Rule, broadcast and confirmation: complete trail, no duplicates — `tests/compliance/audit-completeness.spec.ts:81`
+  - ✓ forced FAILED after broadcast: the terminal transition and the refund are audited, exactly once — `tests/compliance/audit-completeness.spec.ts:125`
+
+## Gaps
+
+- TR-16-BOUNDARY: control violated — MISSING at T=1000.00
+- MC-DUAL-APPROVAL: control violated — 1 failing assertion(s)
+- SOD-HOLD-RESOLUTION: control violated — 1 failing assertion(s)
+- AUD-COMPLETENESS: control violated — 1 failing assertion(s)
