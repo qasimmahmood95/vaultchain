@@ -3,9 +3,8 @@
 // withdrawals are paged with limit=2 to exhaustion: every created id appears
 // exactly once, and nextCursor is null on the final page.
 
-import { test, ApiClient, type ApiResult } from '../fixtures/index.js';
+import { test, ApiClient, type ApiResult, type Build } from '../fixtures/index.js';
 import { expect } from './support/matchers.js';
-import { createWithdrawal } from './support/robust.js';
 import { page, TransactionSchema } from './schemas/index.js';
 
 const CREATED_COUNT = 5;
@@ -16,24 +15,24 @@ interface WithdrawalPage {
   nextCursor: string | null;
 }
 
+/** N own withdrawals on a fresh funded wallet (fee-exact amounts). */
+async function createOwnWithdrawals(build: Build, count: number): Promise<{ walletId: string; ids: string[] }> {
+  const funded = await build.fundedWallet(); // GBPX, 10000.00 covers 5 x 1501.50
+  const addr = await build.activeAddress({ accountId: funded.accountId, asset: 'GBPX' });
+  const ids: string[] = [];
+  for (let i = 0; i < count; i += 1) {
+    const wd = await build.withdrawal({ walletId: funded.walletId, amount: '1500.00', address: addr.address });
+    ids.push(wd.id);
+  }
+  return { walletId: funded.walletId, ids };
+}
+
 test('GET /withdrawals?walletId=&limit=2 pages own data to exhaustion without dupes or drops', async ({
   asOperatorA,
   build,
-  chain,
 }) => {
-  // 5 x (1500.00 + 1.50 fee) = 7507.50 <= the default 10000.00 funding.
-  const funded = await build.fundedWallet();
-  const addr = await build.activeAddress({ accountId: funded.accountId, asset: 'GBPX' });
-
-  const createdIds: string[] = [];
-  for (let i = 0; i < CREATED_COUNT; i += 1) {
-    const wd = await createWithdrawal(build, chain, {
-      walletId: funded.walletId,
-      amount: '1500.00',
-      address: addr.address,
-    }, addr.activatesAt);
-    createdIds.push(wd.id);
-  }
+  const { walletId, ids: createdIds } = await createOwnWithdrawals(build, CREATED_COUNT);
+  const funded = { walletId };
 
   const api = new ApiClient(asOperatorA);
   const seen: string[] = [];
@@ -60,4 +59,30 @@ test('GET /withdrawals?walletId=&limit=2 pages own data to exhaustion without du
   expect(seen).toHaveLength(CREATED_COUNT);
   expect(new Set(seen).size, 'no duplicate ids across pages').toBe(CREATED_COUNT);
   expect([...seen].sort()).toEqual([...createdIds].sort());
+});
+
+test('exact page boundary (count divisible by limit): the FULL final page carries nextCursor null', async ({
+  asOperatorA,
+  build,
+}) => {
+  // PRD §A.6 named edge case: 4 items, limit 2 -> exactly two FULL pages. An
+  // implementation that emits a cursor whenever a page is full (yielding a
+  // trailing empty page) fails here (P2 review Minor 9).
+  const { walletId, ids } = await createOwnWithdrawals(build, 4);
+  const api = new ApiClient(asOperatorA);
+
+  const page1 = await api.get<WithdrawalPage>(`/withdrawals?walletId=${walletId}&limit=2`);
+  expect(page1.status).toBe(200);
+  expect(page1.json.items).toHaveLength(2);
+  expect(page1.json.nextCursor).not.toBeNull();
+
+  const page2 = await api.get<WithdrawalPage>(
+    `/withdrawals?walletId=${walletId}&limit=2&cursor=${page1.json.nextCursor}`,
+  );
+  expect(page2.status).toBe(200);
+  expect(page2.json.items, 'final page is FULL, not partial').toHaveLength(2);
+  expect(page2.json.nextCursor, 'no trailing empty page: null ON the boundary').toBeNull();
+
+  const seen = [...page1.json.items, ...page2.json.items].map((i) => i.id);
+  expect([...seen].sort()).toEqual([...ids].sort());
 });

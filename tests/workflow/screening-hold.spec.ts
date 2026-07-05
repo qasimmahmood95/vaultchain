@@ -55,6 +55,20 @@ test.describe('screening holds', () => {
     const releasedDetail = await compliance.get<HoldResponse>(`/holds/${hold.id}`);
     expect(releasedDetail.json.transaction?.state).toBe('CREDITED');
     expect(await walletBalance(operator, wallet.id)).toBe('2000.00');
+
+    // Non-vacuous state-filter pin (P2 review Minor 10): the RESOLVED hold no
+    // longer appears under state=OPEN — asserted here where a resolved hold is
+    // GUARANTEED to exist, unlike the fresh-DB contract probe.
+    await expect(async () => {
+      const stillOpen = await findOpenHold(compliance, dep.json.id);
+      void stillOpen;
+    }).rejects.toThrow(/no OPEN hold found/);
+
+    // Re-resolving a resolved hold is a state conflict (spec'd 409).
+    const releaseAgain = await compliance.post(`/holds/${hold.id}/release`);
+    expect(releaseAgain.status).toBe(409);
+    const rejectAfterRelease = await compliance.post(`/holds/${hold.id}/reject`);
+    expect(rejectAfterRelease.status).toBe(409);
   });
 
   test('flagged deposit rejected by compliance: hold REJECTED, transaction REJECTED, nothing credited', async ({

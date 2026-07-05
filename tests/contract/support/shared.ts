@@ -10,7 +10,6 @@
 
 import type { APIRequestContext } from '@playwright/test';
 import { ApiClient, type Build, type ChainApi, type Identity } from '../../fixtures/index.js';
-import { createWithdrawal } from './robust.js';
 
 export interface SharedWorld {
   /** The SEEDED clientA tenant id (identities.clientA.clientId). */
@@ -39,7 +38,14 @@ export function getShared(deps: {
   identities: Record<string, Identity>;
   asCompliance: APIRequestContext;
 }): Promise<SharedWorld> {
-  memo ??= create(deps);
+  if (!memo) {
+    memo = create(deps);
+    // Never memoize a rejection: one transient setup failure must not cascade
+    // into every later matrix row in this worker (P2 review Minor 11).
+    memo.catch(() => {
+      memo = undefined;
+    });
+  }
   return memo;
 }
 
@@ -49,7 +55,7 @@ async function create(deps: {
   identities: Record<string, Identity>;
   asCompliance: APIRequestContext;
 }): Promise<SharedWorld> {
-  const { build, chain, identities } = deps;
+  const { build, identities } = deps;
   const clientAId = identities['clientA']?.clientId;
   const clientBId = identities['clientB']?.clientId;
   if (!clientAId || !clientBId) {
@@ -61,17 +67,15 @@ async function create(deps: {
   const funded = await build.fundedWallet({ clientId: clientAId }); // GBPX, 10000.00
   const addr = await build.activeAddress({ accountId: funded.accountId, asset: 'GBPX' });
   const idemKey = build.uniqueRef('idem-authz');
-  const withdrawal = await createWithdrawal(
-    build,
-    chain,
-    {
-      walletId: funded.walletId,
-      amount: '1500.00', // away from fee-rounding boundaries: fee is exactly 1.50 at 10 bps
-      address: addr.address,
-      idempotencyKey: idemKey,
-    },
-    addr.activatesAt,
-  );
+  // Plain builder call: the /simulator/reset shape test moved to the serialized
+  // workflow project, so no contract-side clock rewind window exists any more
+  // (P2 review Minor 6) — the robust.ts recovery shim is gone with it.
+  const withdrawal = await build.withdrawal({
+    walletId: funded.walletId,
+    amount: '1500.00', // away from fee-rounding boundaries: fee is exactly 1.50 at 10 bps
+    address: addr.address,
+    idempotencyKey: idemKey,
+  });
 
   // A clientB-tenant wallet (unfunded is enough): the D19 replay probe must
   // pass the route's own-wallet pre-check so the SERVICE's idempotency lookup

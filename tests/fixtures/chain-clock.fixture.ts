@@ -55,6 +55,7 @@ export const chainClockTest = base.extend<{ chain: ChainApi }>({
     const ctx = await adminContext();
     let delayTouched = false;
     let screeningTouched = false;
+    let freezeTouched = false;
 
     const post = async (path: string, body?: unknown) => {
       const res = await ctx.post(path, body === undefined ? {} : { data: body });
@@ -72,13 +73,17 @@ export const chainClockTest = base.extend<{ chain: ChainApi }>({
         return { blockHeight: json.blockHeight as number, settled: json.settled as number };
       },
       async advanceClockMs(ms) {
-        const current = BigInt((await api.state()).simClockMs);
-        await post('/simulator/clock/set', { ms: (current + ms).toString() });
+        // Atomic RELATIVE advance (D26): the old read-modify-write via
+        // clock/set could land a stale lower target after a concurrent
+        // worker's higher one, transiently REWINDING global time — the race
+        // tests/contract/support/robust.ts used to absorb.
+        await post('/simulator/clock/advance', { ms: ms.toString() });
       },
       async setClockMs(ms) {
         await post('/simulator/clock/set', { ms: ms.toString() });
       },
       async freeze(frozen = true) {
+        freezeTouched = true;
         await post('/simulator/clock/freeze', { frozen });
       },
       async queueScreening(outcome) {
@@ -104,8 +109,11 @@ export const chainClockTest = base.extend<{ chain: ChainApi }>({
     // Teardown: auto-reset FAULT state only. The clock stays where it is —
     // forward-only global time (D22). A queued-but-unconsumed FLAG would
     // poison the next screening anywhere in the run; overwrite with CLEAN.
+    // A test that froze the clock and failed mid-test must not leave global
+    // time frozen for the rest of the run (P2 review Minor 7).
     if (screeningTouched) await post('/simulator/screening/next', { outcome: 'CLEAN' });
     if (delayTouched) await post('/simulator/webhooks/delay', { ms: '0' });
+    if (freezeTouched) await post('/simulator/clock/freeze', { frozen: false });
     await ctx.dispose();
   },
 });

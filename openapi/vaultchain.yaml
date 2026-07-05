@@ -694,6 +694,34 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
 
+  /simulator/clock/advance:
+    post:
+      tags: [simulator]
+      summary: Atomically advance the sim clock by a relative amount (ADMIN)
+      description: |
+        Unlike clock/set (absolute, last-writer-wins), relative advances
+        serialize on the store's write lock and can never rewind the clock
+        past a concurrent caller's progress — the primitive parallel test
+        workers must use.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ms]
+              additionalProperties: false
+              properties:
+                ms: { type: string, pattern: '^\d+$' }
+      responses:
+        '200':
+          description: Chain state after the advance
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ChainState' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
   /simulator/clock/freeze:
     post:
       tags: [simulator]

@@ -7,6 +7,7 @@ import { requireRole } from '../plugins/auth.js';
 import { getChain } from '../services/clock.js';
 import {
   advanceChain,
+  advanceClockBy,
   forceTxOutcome,
   freezeClock,
   queueScreeningOutcome,
@@ -54,6 +55,25 @@ export function registerSimulatorRoutes(app: FastifyInstance): void {
     },
     async (request) => {
       await setClock(prisma, request.body.ms, request.actor);
+      return getChain(prisma);
+    },
+  );
+
+  app.post<{ Body: { ms: string } }>(
+    '/simulator/clock/advance',
+    {
+      ...admin,
+      schema: {
+        body: {
+          type: 'object',
+          required: ['ms'],
+          additionalProperties: false,
+          properties: { ms: { type: 'string', pattern: '^\\d+$' } },
+        },
+      },
+    },
+    async (request) => {
+      await advanceClockBy(prisma, request.body.ms, request.actor);
       return getChain(prisma);
     },
   );

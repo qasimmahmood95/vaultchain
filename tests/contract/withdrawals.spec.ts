@@ -9,7 +9,6 @@
 
 import { test, ApiClient, type Build } from '../fixtures/index.js';
 import { expect, expectProblem } from './support/matchers.js';
-import { createWithdrawal, postWithdrawal } from './support/robust.js';
 import { page, TransactionSchema, WithdrawalDetailSchema } from './schemas/index.js';
 
 /** Fresh funded GBPX wallet + ACTIVE allowlisted address (own data per test). */
@@ -22,15 +21,13 @@ async function withdrawalWorld(build: Build) {
 test('POST /withdrawals -> 201 Transaction in PENDING_APPROVAL', async ({
   asOperatorA,
   build,
-  chain,
 }) => {
   const { funded, addr } = await withdrawalWorld(build);
-  const res = await postWithdrawal(
-    new ApiClient(asOperatorA),
-    chain,
-    { walletId: funded.walletId, amount: '1500.00', counterpartyAddress: addr.address },
-    addr.activatesAt,
-  );
+  const res = await new ApiClient(asOperatorA).post('/withdrawals', {
+    walletId: funded.walletId,
+    amount: '1500.00',
+    counterpartyAddress: addr.address,
+  });
   expect(res.status).toBe(201);
   expect(res.json).toMatchSchema(TransactionSchema);
   const tx = res.json as { type: string; state: string; fee: string };
@@ -41,7 +38,6 @@ test('POST /withdrawals -> 201 Transaction in PENDING_APPROVAL', async ({
 test('idempotent replay -> 200 with the SAME withdrawal returned', async ({
   asOperatorA,
   build,
-  chain,
 }) => {
   const { funded, addr } = await withdrawalWorld(build);
   const api = new ApiClient(asOperatorA);
@@ -52,7 +48,7 @@ test('idempotent replay -> 200 with the SAME withdrawal returned', async ({
     idempotencyKey: build.uniqueRef('idem-replay'),
   };
 
-  const created = await postWithdrawal(api, chain, body, addr.activatesAt);
+  const created = await api.post('/withdrawals', body);
   expect(created.status).toBe(201);
 
   const replayed = await api.post('/withdrawals', body);
@@ -64,14 +60,13 @@ test('idempotent replay -> 200 with the SAME withdrawal returned', async ({
 test('GET /withdrawals?walletId= -> 200 page envelope of Transaction', async ({
   asOperatorA,
   build,
-  chain,
 }) => {
   const { funded, addr } = await withdrawalWorld(build);
-  const created = await createWithdrawal(build, chain, {
+  const created = await build.withdrawal({
     walletId: funded.walletId,
     amount: '1500.00',
     address: addr.address,
-  }, addr.activatesAt);
+  });
   const res = await new ApiClient(asOperatorA).get(`/withdrawals?walletId=${funded.walletId}`);
   expect(res.status).toBe(200);
   expect(res.json).toMatchSchema(page(TransactionSchema));
@@ -82,14 +77,13 @@ test('GET /withdrawals?walletId= -> 200 page envelope of Transaction', async ({
 test('GET /withdrawals/{id} -> 200 WithdrawalDetail (approvals + travelRule arrays)', async ({
   asOperatorA,
   build,
-  chain,
 }) => {
   const { funded, addr } = await withdrawalWorld(build);
-  const created = await createWithdrawal(build, chain, {
+  const created = await build.withdrawal({
     walletId: funded.walletId,
     amount: '1500.00',
     address: addr.address,
-  }, addr.activatesAt);
+  });
   const res = await new ApiClient(asOperatorA).get(`/withdrawals/${created.id}`);
   expect(res.status).toBe(200);
   expect(res.json).toMatchSchema(WithdrawalDetailSchema);
@@ -102,15 +96,14 @@ test('POST /withdrawals/{id}/approvals (distinct checker) -> 201 Transaction; de
   asOperatorA,
   asOperatorB,
   build,
-  chain,
   identities,
 }) => {
   const { funded, addr } = await withdrawalWorld(build);
-  const created = await createWithdrawal(build, chain, {
+  const created = await build.withdrawal({
     walletId: funded.walletId,
     amount: '1500.00',
     address: addr.address,
-  }, addr.activatesAt);
+  });
 
   // Maker is operatorA (builder contract); operatorB is the distinct checker.
   const res = await new ApiClient(asOperatorB).post(`/withdrawals/${created.id}/approvals`, {
@@ -133,14 +126,13 @@ test('POST /withdrawals/{id}/cancel -> 200 CANCELLED; approvals afterwards -> 40
   asOperatorA,
   asOperatorB,
   build,
-  chain,
 }) => {
   const { funded, addr } = await withdrawalWorld(build);
-  const created = await createWithdrawal(build, chain, {
+  const created = await build.withdrawal({
     walletId: funded.walletId,
     amount: '1500.00',
     address: addr.address,
-  }, addr.activatesAt);
+  });
 
   const cancelled = await new ApiClient(asOperatorA).post(`/withdrawals/${created.id}/cancel`);
   expect(cancelled.status).toBe(200);
@@ -158,15 +150,14 @@ test('POST /withdrawals/{id}/travel-rule -> 201 Transaction; detail lists both r
   asCompliance,
   asOperatorA,
   build,
-  chain,
 }) => {
   const { funded, addr } = await withdrawalWorld(build);
-  const created = await createWithdrawal(build, chain, {
+  const created = await build.withdrawal({
     walletId: funded.walletId,
     amount: '1500.00', // above-threshold amount only exercises the SHAPE (boundaries are P4)
     address: addr.address,
     vaspId: build.uniqueRef('vasp-counterparty'),
-  }, addr.activatesAt);
+  });
 
   const res = await new ApiClient(asCompliance).post(`/withdrawals/${created.id}/travel-rule`, {
     originator: {
@@ -190,15 +181,14 @@ test('POST /withdrawals/{id}/travel-rule -> 201 Transaction; detail lists both r
 test('travel-rule originator with neither physicalAddress nor dateOfBirth -> 422', async ({
   asOperatorA,
   build,
-  chain,
 }) => {
   const { funded, addr } = await withdrawalWorld(build);
-  const created = await createWithdrawal(build, chain, {
+  const created = await build.withdrawal({
     walletId: funded.walletId,
     amount: '1500.00',
     address: addr.address,
     vaspId: build.uniqueRef('vasp-counterparty'),
-  }, addr.activatesAt);
+  });
   const res = await new ApiClient(asOperatorA).post(`/withdrawals/${created.id}/travel-rule`, {
     originator: { name: 'No Address Given (fictional)', accountRef: funded.walletId },
     beneficiary: { name: 'Far Side Custody GmbH (fictional)', accountRef: addr.address },

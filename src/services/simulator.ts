@@ -56,6 +56,31 @@ export async function advanceChain(
   return { blockHeight: newHeight, simClockMs: newClock.toString(), settled };
 }
 
+/**
+ * Atomically advance the sim clock by a RELATIVE amount. Unlike clock/set
+ * (absolute, last-writer-wins), concurrent relative advances serialize on the
+ * DB write lock and can never rewind the clock past another caller's progress
+ * — the primitive parallel test workers must use (D26).
+ */
+export async function advanceClockBy(prisma: PrismaClient, ms: string, actor: Actor): Promise<{ simClockMs: string }> {
+  const updated = await prisma.$transaction(async (db) => {
+    const chain = await getChain(db);
+    const next = (BigInt(chain.simClockMs) + BigInt(ms)).toString();
+    await db.chainState.update({ where: { id: chain.id }, data: { simClockMs: next } });
+    await writeAudit(db, {
+      actor,
+      action: 'SIM_CLOCK_ADVANCED',
+      entityType: 'ChainState',
+      entityId: chain.id,
+      before: { simClockMs: chain.simClockMs },
+      after: { simClockMs: next },
+    });
+    return next;
+  });
+  await flushDueWebhooks(prisma);
+  return { simClockMs: updated };
+}
+
 export async function setClock(prisma: PrismaClient, ms: string, actor: Actor): Promise<void> {
   const chain = await getChain(prisma);
   await prisma.chainState.update({ where: { id: chain.id }, data: { simClockMs: BigInt(ms).toString() } });

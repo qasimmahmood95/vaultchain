@@ -80,6 +80,15 @@ record it here, continue. None of these change the API contract in `openapi/vaul
   doesn't assert on clock position.
 - **D23 — No browser binaries in P2.** The API layers use request contexts only;
   `playwright install chromium` becomes a P3 prerequisite.
+- **D26 — `/simulator/clock/advance`: atomic relative clock movement (spec addition).**
+  Deleting `robust.ts` (P2 Minor 6) exposed the real race it had been absorbing: the
+  fixture's `advanceClockMs` was a client-side read-modify-write via `clock/set`, so a
+  stale lower target could land AFTER a concurrent worker's higher one and transiently
+  rewind global time past someone's cooling-off activation (observed: 1 contract failure
+  in a full parallel run). Root fix, as the P2b contract agent proposed: a server-side
+  atomic relative advance (single DB transaction; can never rewind). Spec + route +
+  contract shape test + fixture switched together — `clock/set` remains for explicit
+  absolute use (reset restore, workflow).
 - **D25 — Strict contract schemas: DECIDED-YES, executed in P4.** (P2 review Minor 8.)
   The zod response schemas will move to `z.strictObject` and the OpenAPI response
   schemas gain `additionalProperties: false` **together**, in P4, alongside the
