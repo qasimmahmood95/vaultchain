@@ -1,0 +1,93 @@
+================================================================
+PHASE P4b EVIDENCE — main (fixed platform)
+D25 strict schemas · ESLint · CI · agents panel · README ·
+clean-clone verification · deferred P4a+P4b review.
+FICTIONAL system-under-test. Captured per PRD §C.2 DoD.
+================================================================
+
+--- toolchain ---
+node v26.3.1 / pnpm 11.9.0
+commit: f33b4dc (ci: isolate the required compliance-gate job (combined-review Minor 1))
+
+--- static gates (main) ---
+typecheck (tsc --noEmit): exit 0
+eslint . : clean (type-aware no-floating-promises enabled)
+markdownlint-cli2 : clean (all repo docs, incl. the 4 new agent panel files)
+redocly lint openapi/vaultchain.yaml : valid (48 style-only warnings)
+
+--- full pipeline on main: exit-code-gated runs ---
+(setup -> contract [parallel] -> workflow -> ui -> compliance [serialized])
+run1: 231 passed (35.3s) (exit 0)
+run2: 231 passed (35.4s) (exit 0)
+231 = 222 prior + 9 @compliance.
+
+--- CLEAN-CLONE verification (fresh clone of main, the one-command experience) ---
+Docker is unavailable here (D2), so the tsx path was used and the Docker gap is
+recorded in docs/DEFERRED.md rather than claimed. Steps from a pristine clone:
+  git clone --branch main ... ; pnpm install --frozen-lockfile ; npx prisma generate ;
+  npx playwright install chromium ; npx playwright test
+BUGS.md ABSENT in the clone (gitignored answer key — correct clean-clone experience).
+typecheck 0, eslint clean, markdownlint clean, then:
+  full suite: 231 passed (35.5s) (exit 0)
+
+--- D25 strict schemas (item 1) ---
+openapi response schemas closed (additionalProperties:false on flat, unevaluatedProperties:false
+on allOf composites); contract zod schemas -> z.strictObject. Running the contract suite
+against the strict schemas surfaced TWO real drifts, fixed per D18 (spec source of truth),
+each its own commit: (a) ComplianceHold.transaction + /simulator/tx/{id}/force leaked the full
+Prisma row -> projected to TransactionRaw (serializeTransactionRaw); (b) the contract-drift
+PANEL AGENT then caught the nested approvals[]/travelRule[] item objects still open in the
+spec -> closed. Contract suite 183 green after each. D33 recorded.
+
+--- reconciliation invariant (server-free) ---
+seed-fresh: RECONCILIATION OK across 48 wallets
+
+--- gate-summary.md (main) ---
+# VaultChain compliance gate summary
+
+> Emitted by `reporters/compliance-reporter.ts`. Deterministic by design: no
+> timestamps or durations — an identical run produces identical bytes.
+
+**GATE: GREEN** — all 9 assertion run(s) passed; every control evidenced; no gaps.
+
+## TR-16-BOUNDARY
+
+Travel Rule — originator + beneficiary data required at/above the 1000.00 fiat threshold (PRD §A.3.3)
+
+- Status: **PASS**
+- Assertions run: 3 (0 failed)
+- Travel-Rule coverage: 3/3 boundary cases
+  - ✓ [T-1=999.99] T-1: a cross-VASP transfer of 999.99 proceeds to broadcast without a Travel Rule record — `tests/compliance/travel-rule.spec.ts:21`
+  - ✓ [T=1000.00] T: exactly 1000.00 cross-VASP cannot leave TRAVEL_RULE_CHECK without originator AND beneficiary data — `tests/compliance/travel-rule.spec.ts:52`
+  - ✓ [T+1=1000.01] T+1: 1000.01 cross-VASP is gated identically — record required before broadcast — `tests/compliance/travel-rule.spec.ts:111`
+
+## MC-DUAL-APPROVAL
+
+Dual approval — N distinct non-maker approvers; maker≠checker holds under concurrency (PRD §A.3.2)
+
+- Status: **PASS**
+- Assertions run: 1 (0 failed)
+  - ✓ dual approval under concurrency: a simultaneous volley (maker + duplicate checker) cannot mint APPROVED — `tests/compliance/dual-approval.spec.ts:25`
+
+## SOD-HOLD-RESOLUTION
+
+Segregation of duties — only a compliance officer resolves screening holds, on every surface (PRD §A.4)
+
+- Status: **PASS**
+- Assertions run: 2 (0 failed)
+  - ✓ API surface: only the compliance officer resolves a hold — release AND reject — `tests/compliance/segregation-of-duties.spec.ts:24`
+  - ✓ UI surface: the admin-UI resolve form is refused for every non-compliance session — `tests/compliance/segregation-of-duties.spec.ts:74`
+
+## AUD-COMPLETENESS
+
+Audit completeness — every state transition audited with actor + before/after, exactly once (PRD §A.1)
+
+- Status: **PASS**
+- Assertions run: 3 (0 failed)
+  - ✓ deposit with a screening hold: every transition audited exactly once — the release included — `tests/compliance/audit-completeness.spec.ts:45`
+  - ✓ withdrawal through approval, Travel Rule, broadcast and confirmation: complete trail, no duplicates — `tests/compliance/audit-completeness.spec.ts:81`
+  - ✓ forced FAILED after broadcast: the terminal transition and the refund are audited, exactly once — `tests/compliance/audit-completeness.spec.ts:125`
+
+## Gaps
+
+- none — every control has passing evidence
