@@ -1,0 +1,84 @@
+================================================================
+PHASE P4a EVIDENCE — main (fixed platform)
+Compliance gate suite (9 @compliance tests) + gate-summary reporter
+Captured per PRD §C.2 DoD. FICTIONAL system-under-test.
+================================================================
+
+--- toolchain ---
+node v26.3.1 / pnpm 11.9.0
+commit: a86b760 (test(compliance): P4a — @compliance gate suite + deterministic gate-summary reporter)
+
+--- typecheck ---
+$ tsc --noEmit
+typecheck exit: 0
+
+--- full pipeline: 4 consecutive exit-code-gated runs ---
+(setup -> contract [parallel] -> workflow [serialized] -> ui [serialized, chromium] -> compliance [serialized])
+run 1: 231 passed (37.3s) (exit 0)
+run 2: 231 passed (37.2s) (exit 0)
+run 3: 231 passed (1.0m) (exit 0)
+run 4: 231 passed (39.0s) (exit 0)
+
+--- gate-summary determinism (D32) ---
+gate-summary.md byte-identical across consecutive full-pipeline runs: VERIFIED (diff clean)
+
+--- dual-approval stress variant (D31, documented invocation) ---
+npx playwright test --project=compliance --no-deps --grep "dual approval" --repeat-each=10
+result: 10 passed (28.9s) (exit 0)
+
+--- compliance gate-only invocation (--no-deps, fresh-seeded server) ---
+result: 9 passed (21.0s) (exit 0)
+
+--- reconciliation invariant ---
+seed-fresh:  RECONCILIATION OK: invariant holds across 48 wallets
+post-suite:  RECONCILIATION OK: invariant holds across 135 wallets
+
+--- gate-summary.md (main, full-pipeline run) ---
+# VaultChain compliance gate summary
+
+> Emitted by `reporters/compliance-reporter.ts`. Deterministic by design: no
+> timestamps or durations — an identical run produces identical bytes.
+
+**GATE: GREEN** — all 9 assertion run(s) passed; every control evidenced; no gaps.
+
+## TR-16-BOUNDARY
+
+Travel Rule — originator + beneficiary data required at/above the 1000.00 fiat threshold (PRD §A.3.3)
+
+- Status: **PASS**
+- Assertions run: 3 (0 failed)
+- Travel-Rule coverage: 3/3 boundary cases
+  - ✓ [T-1=999.99] T-1: a cross-VASP transfer of 999.99 proceeds to broadcast without a Travel Rule record — `tests/compliance/travel-rule.spec.ts:21`
+  - ✓ [T=1000.00] T: exactly 1000.00 cross-VASP cannot leave TRAVEL_RULE_CHECK without originator AND beneficiary data — `tests/compliance/travel-rule.spec.ts:52`
+  - ✓ [T+1=1000.01] T+1: 1000.01 cross-VASP is gated identically — record required before broadcast — `tests/compliance/travel-rule.spec.ts:111`
+
+## MC-DUAL-APPROVAL
+
+Dual approval — N distinct non-maker approvers; maker≠checker holds under concurrency (PRD §A.3.2)
+
+- Status: **PASS**
+- Assertions run: 1 (0 failed)
+  - ✓ dual approval under concurrency: a simultaneous volley (maker + duplicate checker) cannot mint APPROVED — `tests/compliance/dual-approval.spec.ts:25`
+
+## SOD-HOLD-RESOLUTION
+
+Segregation of duties — only a compliance officer resolves screening holds, on every surface (PRD §A.4)
+
+- Status: **PASS**
+- Assertions run: 2 (0 failed)
+  - ✓ API surface: only the compliance officer resolves a hold — release AND reject — `tests/compliance/segregation-of-duties.spec.ts:24`
+  - ✓ UI surface: the admin-UI resolve form is refused for every non-compliance session — `tests/compliance/segregation-of-duties.spec.ts:74`
+
+## AUD-COMPLETENESS
+
+Audit completeness — every state transition audited with actor + before/after, exactly once (PRD §A.1)
+
+- Status: **PASS**
+- Assertions run: 3 (0 failed)
+  - ✓ deposit with a screening hold: every transition audited exactly once — the release included — `tests/compliance/audit-completeness.spec.ts:45`
+  - ✓ withdrawal through approval, Travel Rule, broadcast and confirmation: complete trail, no duplicates — `tests/compliance/audit-completeness.spec.ts:81`
+  - ✓ forced FAILED after broadcast: the terminal transition and the refund are audited, exactly once — `tests/compliance/audit-completeness.spec.ts:125`
+
+## Gaps
+
+- none — every control has passing evidence
