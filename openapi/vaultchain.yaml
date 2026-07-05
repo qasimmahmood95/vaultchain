@@ -1067,6 +1067,10 @@ components:
               type: array
               items:
                 type: object
+                # Closed to match the strict Zod ApprovalSchema (D25/D33). The
+                # composite's unevaluatedProperties does NOT reach array-item
+                # subschemas, so these must close themselves (contract-drift agent).
+                additionalProperties: false
                 required: [approverApiKeyId, approverRole, decision]
                 properties:
                   approverApiKeyId: { type: string }
@@ -1076,9 +1080,12 @@ components:
               type: array
               items:
                 type: object
+                additionalProperties: false # closed to match strict TravelRuleRecordSchema (D25/D33)
                 required: [direction, payload]
                 properties:
                   direction: { type: string, enum: [ORIGINATOR, BENEFICIARY] }
+                  # payload stays OPEN: the IVMS-style record is a freeform map,
+                  # matching Zod z.record(z.string(), z.unknown()).
                   payload: { type: object }
 
     AllowlistedAddress:
