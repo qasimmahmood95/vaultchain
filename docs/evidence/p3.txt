@@ -1,0 +1,22 @@
+=== VaultChain Phase P3 evidence (main) ===
+=== captured: 2026-07-05T17:06:33Z | commit: d58bcdf ===
+
+Phase contents: pre-batch (P2 review Majors 2-5, Minors 6-11, Nits 12-15, D26 atomic
+clock advance + transactional advanceChain) + admin UI (D1, §A.5) + UI journeys.
+
+$ pnpm typecheck
+$ tsc --noEmit
+exit: 0
+
+$ npx playwright test   (bare invocation x3: fresh, KEEP_DB, KEEP_DB — exit codes checked)
+   pipeline: setup -> contract (parallel) -> workflow (serialized) -> ui (serialized, chromium)
+  216 passed (38.0s)
+  216 passed (24.3s)
+  216 passed (24.8s)
+
+$ npx tsx scripts/check-invariant.ts
+RECONCILIATION OK: invariant holds across 276 wallets
+
+$ pnpm smoke
+== SMOKE PASSED ==
+exit: 0
