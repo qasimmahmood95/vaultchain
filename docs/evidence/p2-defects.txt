@@ -41,3 +41,12 @@ $ npx playwright test --project=workflow --no-deps   (workflow failures, explici
   BUG-002/003/006 -> UNCAUGHT BY DESIGN: P4 compliance-gate primaries (dual-approval race,
                      Travel-Rule threshold boundary, hold-release audit completeness).
   Everything else green here: 171/176 contract + 18/21 workflow.
+
+=== PRE-P3 BATCH VERIFICATION (2026-07-05T16:54:55Z) ===
+After the P2-review pre-batch (Majors 2-5, Minors 6-11, Nits 12-15, D26 clock/advance):
+the failure map is UNCHANGED — the 22 new tests are branch-neutral by design
+(fee-exact values; compliance-role hold paths; no planted-boundary assertions).
+
+  contract: 5 failed / 173 passed  (same 5 authz-matrix hold-resolution rows -> BUG-005)
+  workflow: 3 failed / 27 passed   (cooling-off -> BUG-004; replay -> BUG-007; 15.00 fee -> BUG-001)
+  BUG-002/003/006 remain uncaught by design (P4 compliance-gate primaries).
