@@ -85,8 +85,9 @@ test('deliveries are recorded and signed; /simulator replay returns the replay e
 
   let mine = await fetchMine();
   if (!mine) {
-    // One-shot forward-recovery: if a concurrent /simulator/reset window
-    // stalled the deposit's confirmations, re-advance and look again (D22).
+    // Belt-and-braces re-advance: settlement is CAS-guarded and the clock is
+    // forward-only (D22/D28), so if this worker's first advance didn't reach
+    // the deposit's confirmation requirement, advancing further will.
     await chain.advanceBlocks(12);
     mine = await fetchMine();
   }

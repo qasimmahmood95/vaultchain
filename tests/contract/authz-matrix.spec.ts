@@ -372,6 +372,19 @@ const PROBES: Probe[] = [
     ],
   },
   {
+    endpoint: 'POST /simulator/clock/advance',
+    method: 'POST',
+    // The D26 relative-advance endpoint is ADMIN-only like every other
+    // simulator route — pin the denial (P3 review Minor 1). Relative + tiny,
+    // so a broken guard letting it through can't disrupt other tests.
+    path: () => '/simulator/clock/advance',
+    body: () => ({ ms: '1000' }),
+    cases: [
+      ['operatorA', 403],
+      ['clientA', 403],
+    ],
+  },
+  {
     endpoint: 'POST /simulator/screening/next',
     method: 'POST',
     path: () => '/simulator/screening/next',

@@ -143,6 +143,18 @@ export function makeBuilders(deps: {
         'build.fundedWallet deposit',
       );
       await deps.chain.advanceBlocks(CONFIRMATIONS_FOR_ALL_ASSETS);
+      // Guarantee the "funded" contract under PARALLEL advances: advanceChain
+      // settles GLOBAL pending deposits, so a concurrent worker may have won the
+      // CAS claim on our deposit's settlement (D28) and still be committing the
+      // credit when we return. The wallet is fresh (starts at "0") and the
+      // deposit is positive, so a non-zero balance means our credit is visible.
+      // Bounded, condition-based (no sleep); re-advance nudges a still-pending
+      // deposit and lets any in-flight credit commit.
+      for (let attempt = 0; attempt < 8; attempt += 1) {
+        const w = await operator.get<{ balanceMinor: string }>(`/wallets/${wallet.id}`);
+        if (w.status === 200 && w.json.balanceMinor !== '0') break;
+        await deps.chain.advanceBlocks(1);
+      }
       return {
         walletId: wallet.id,
         accountId: account.accountId,
