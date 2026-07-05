@@ -32,6 +32,27 @@ export function serializeTx(tx: Transaction, decimals: Map<string, number>): Rec
   };
 }
 
+/**
+ * components/schemas/TransactionRaw — the COMPACT transaction projection used
+ * where a transaction is embedded (ComplianceHold.transaction) or returned raw
+ * (simulator force). Deliberately narrow: never leak internal columns
+ * (createdByApiKeyId, broadcastBlockHeight, …). The spec is the source of truth
+ * for this shape (D18/D33); returning the raw Prisma row is drift.
+ */
+export function serializeTransactionRaw(
+  tx: Pick<Transaction, 'id' | 'walletId' | 'type' | 'assetSymbol' | 'amountMinor' | 'feeMinor' | 'state'>,
+): Record<string, unknown> {
+  return {
+    id: tx.id,
+    walletId: tx.walletId,
+    type: tx.type,
+    assetSymbol: tx.assetSymbol,
+    amountMinor: tx.amountMinor,
+    feeMinor: tx.feeMinor,
+    state: tx.state,
+  };
+}
+
 export function serializeWallet(wallet: Wallet, decimals: Map<string, number>): Record<string, unknown> {
   const d = decimals.get(wallet.assetSymbol) ?? 0;
   return {

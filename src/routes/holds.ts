@@ -6,7 +6,7 @@ import type { FastifyInstance } from 'fastify';
 import { prisma } from '../db.js';
 import { notFound } from '../errors.js';
 import { requireRole } from '../plugins/auth.js';
-import { pageArgs, toPage } from '../serialize.js';
+import { pageArgs, serializeTransactionRaw, toPage } from '../serialize.js';
 import { rejectHold, releaseHold } from '../services/lifecycle.js';
 
 export function registerHoldRoutes(app: FastifyInstance): void {
@@ -33,7 +33,9 @@ export function registerHoldRoutes(app: FastifyInstance): void {
         include: { transaction: true },
       });
       if (!hold) throw notFound('Hold');
-      return hold;
+      // Project the embedded transaction to TransactionRaw — never leak the full
+      // Prisma row's internal columns (D33 drift, spec is source of truth per D18).
+      return { ...hold, transaction: serializeTransactionRaw(hold.transaction) };
     },
   );
 

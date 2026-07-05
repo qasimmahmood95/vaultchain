@@ -4,6 +4,7 @@
 import type { FastifyInstance } from 'fastify';
 import { prisma } from '../db.js';
 import { requireRole } from '../plugins/auth.js';
+import { serializeTransactionRaw } from '../serialize.js';
 import { getChain } from '../services/clock.js';
 import {
   advanceChain,
@@ -100,7 +101,8 @@ export function registerSimulatorRoutes(app: FastifyInstance): void {
         },
       },
     },
-    async (request) => forceTxOutcome(prisma, request.params.id, request.body.outcome, request.actor),
+    async (request) =>
+      serializeTransactionRaw(await forceTxOutcome(prisma, request.params.id, request.body.outcome, request.actor)),
   );
 
   app.post<{ Body: { outcome: 'CLEAN' | 'FLAG' } }>(
