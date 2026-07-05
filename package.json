@@ -20,6 +20,7 @@
     "test:serve": "tsx scripts/test-serve.ts",
     "test:contract": "playwright test --project=contract",
     "test:workflow": "playwright test --project=workflow",
+    "test:compliance": "playwright test --project=compliance",
     "test": "playwright test"
   },
   "dependencies": {

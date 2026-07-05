@@ -1,5 +1,5 @@
-// Playwright config (PRD §B.4). P2 ships the setup/contract/workflow
-// projects; ui (P3) and compliance (P4) arrive with their phases.
+// Playwright config (PRD §B.4). Strict project pipeline:
+// setup -> contract (parallel) -> workflow -> ui -> compliance (serialized).
 //
 // Retries are 0: the API layers are deterministic by construction (simulator,
 // no real network) and a retried pass would hide real races (PRD §B.6). The
@@ -18,7 +18,15 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: 0,
-  reporter: [['list'], ['html', { open: 'never' }], ['blob']],
+  reporter: [
+    ['list'],
+    ['html', { open: 'never' }],
+    ['blob'],
+    // Compliance gate summary (PRD §B.5): buckets @compliance results by
+    // control and writes gate-summary.{md,html}. No-op when no @compliance
+    // tests ran (a partial run must not clobber the last real gate artifact).
+    ['./reporters/compliance-reporter.ts'],
+  ],
   use: {
     baseURL: API_BASE,
     trace: 'on-first-retry',
@@ -63,6 +71,21 @@ export default defineConfig({
       // with traces for triage (PRD §B.6). Locally a flake must fail loudly.
       retries: process.env.CI ? 2 : 0,
       use: { ...devices['Desktop Chrome'] },
+    },
+    {
+      name: 'compliance',
+      testDir: 'tests/compliance',
+      grep: /@compliance/,
+      // Last in the strict pipeline (D30): the gate consumes the global
+      // screening queue and asserts exact audit sequences, so it is serialized
+      // for the same platform-global-state reason as workflow/ui (D21).
+      // Browser-free: UI-surface probes use storageState request contexts.
+      dependencies: ['setup', 'ui'],
+      workers: 1,
+      fullyParallel: false,
+      // Explicit even though it matches the global default: gate policy §B.6 —
+      // a compliance assertion that only passes on retry is not passing.
+      retries: 0,
     },
   ],
 });

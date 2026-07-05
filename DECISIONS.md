@@ -3,6 +3,28 @@
 Per the P1 working rules: where the PRD doesn't answer, make the smaller-scope choice,
 record it here, continue. None of these change the API contract in `openapi/vaultchain.yaml`.
 
+- **D30 — The compliance gate runs serialized at the END of the strict pipeline, browser-free.**
+  (P4a.) §B.4's sketch has the compliance project depending on `setup` only; the evolved
+  config uses a strict project chain (D21), and the gate both consumes the global screening
+  queue and asserts exact audit sequences — so it is serialized (`workers: 1`) and ordered
+  after `ui`. The §B.3 "+1 UI check" (segregation of duties on the admin-UI surface) is
+  asserted at the HTTP layer via storageState-loaded request contexts — the cookie, the
+  `/ui`-scoped form encoding, and the route guard ARE the rule — keeping the REQUIRED gate
+  free of the one legitimately timing-prone layer (§B.6: gate retries 0). Rendering of the
+  resolve controls remains P3's UI journey. Corollary: the gate resolves actor identities
+  via `/me` AT RUNTIME, never `.auth/identity.json` — DB ids are cuids minted per seed, so
+  a `--no-deps` invocation after a reseed (the defect-branch evidence protocol) would
+  otherwise compare against stale ids (found empirically: 2 failures on the first
+  `--project=compliance --no-deps` run).
+- **D31 — The dual-approval stress variant is a documented `--repeat-each` invocation of the
+  SAME probe**, not a second test: `npx playwright test --project=compliance --no-deps
+  --grep "dual approval" --repeat-each=10`. One probe keeps the defect-branch failure map
+  1:1 with the gate's four cases (a second racing test would double-count BUG-002's catch).
+- **D32 — `gate-summary.md`/`.html` are deterministic run artifacts at the repo root,
+  gitignored.** No wall-clock timestamps or durations — an identical run produces identical
+  bytes, so the committed evidence (which embeds the md) diffs meaningfully. The reporter
+  writes nothing when no `@compliance` test ran, so a partial run (`--project=contract`)
+  cannot clobber the last real gate artifact.
 - **D27 — Admin UI is a STAFF-only surface; `vc_key` is a UI-only credential.** (P3 review
   Majors 1+2, pre-P4 batch.) `/ui/login` rejects CLIENT keys (§A.5 says *admin* UI) AND the
   `/ui` GET screens carry a staff-role allowlist (defence-in-depth, both layers). The
