@@ -3,6 +3,22 @@
 Per the P1 working rules: where the PRD doesn't answer, make the smaller-scope choice,
 record it here, continue. None of these change the API contract in `openapi/vaultchain.yaml`.
 
+- **D34 — CI job graph maps the strict serialized pipeline to isolated per-project
+  jobs; only `ui` is sharded.** (P4b, PRD §B.5.) `.github/workflows/ci.yml` implements the
+  §B.5 graph: `lint` → `typecheck` → {`api-contract`, `api-workflow`, `ui` (4-way shard),
+  `compliance-gate` (required)} → `merge-reports` (Pages). The sim clock/height are global
+  PER SERVER (D21/D22), and each CI job boots its own isolated server, so serialization is
+  preserved by `workers: 1` WITHIN a job. `api-workflow` and `compliance-gate` are single,
+  un-sharded jobs because their sequences carry intra-project global-state ordering (settle-
+  then-flag; the screening queue) that must run in one server in order; `ui` IS sharded
+  because each shard is an isolated server running independent journeys, still serialized
+  within. Each job runs `--project=<x>`, so Playwright re-establishes that project's upstream
+  dependencies on the job's own server — deliberate isolation over cross-runner state
+  sharing. `compliance-gate` is the REQUIRED branch-protection check (a Settings action, not
+  YAML). `review.yml` is the §D.3 advisory pattern: it runs a reviewer agent on PRs touching
+  `tests/**` and posts a comment, `continue-on-error` and never required — an honest pattern
+  demo, not an LLM merge gate. Like the Dockerfile (D2), the workflows are authored-to-spec
+  but not executed here (no GHA runner); local evidence runs the same commands directly.
 - **D33 — Strict response schemas (D25 executed): `additionalProperties: false` on flat
   schemas, `unevaluatedProperties: false` on `allOf` composites.** (P4b, fulfilling the D25
   standing decision.) The contract layer's zod response schemas are now `z.strictObject`

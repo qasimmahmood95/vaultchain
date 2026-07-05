@@ -1,0 +1,199 @@
+# VaultChain CI (PRD §B.5). Job graph:
+#
+#   lint ─┐
+#         ├─> typecheck ─┬─> api-contract ───────────────┐
+#                        ├─> api-workflow ───────────────┤
+#                        ├─> ui (matrix: shard 1..4) ─────┼─> merge-reports ─> Pages
+#                        └─> compliance-gate  (REQUIRED) ─┘        └─> gate-summary
+#
+# SERIALIZATION ARCHITECTURE (D21/D22/D30) — why the jobs are shaped this way:
+#   The sim clock and block height are GLOBAL PER SERVER. The workflow, ui and
+#   compliance projects therefore run serialized (workers: 1) so no two tests
+#   race that shared state. In CI each job boots its OWN isolated server (the
+#   `webServer` command reseeds a fresh DB), so:
+#     • api-workflow and compliance-gate run as SINGLE, un-sharded jobs — their
+#       test sequences carry intra-project global-state ORDERING (e.g. "settle
+#       the backlog, THEN queue a screening FLAG") that must run in one server,
+#       in order; fragmenting them across shards would break that ordering.
+#     • ui IS distributed across a 4-way shard matrix: each shard is an isolated
+#       server running a SUBSET of the independent UI journeys, still serialized
+#       (workers: 1) WITHIN the shard. Sharding here buys wall-clock speed without
+#       touching the per-server serialization guarantee.
+#   Each project job runs `--project=<x>`, so Playwright re-establishes that
+#   project's upstream dependencies (setup → contract → …) on the job's own
+#   server. That upstream re-run is deliberate: it keeps every job fully isolated
+#   rather than sharing server/DB state across runners (the price of the strict
+#   local pipeline). See DECISIONS.md D34.
+#
+# NB (like the Dockerfile, D2): this workflow is AUTHORED to spec but not executed
+# in the build environment — there is no GitHub Actions runner here. The local
+# evidence (docs/evidence/p4b.txt) captures the same commands run directly.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Cancel superseded runs on the same ref.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: "22"
+
+jobs:
+  lint:
+    name: lint (eslint + markdownlint)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # `pnpm lint` = `eslint . && markdownlint-cli2` — a lint setup CI never runs
+      # is decoration, so BOTH linters gate here (the markdownlint config landed
+      # in the P4a session; ESLint in P4b).
+      - run: pnpm lint
+
+  typecheck:
+    name: typecheck (tsc --noEmit)
+    needs: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: npx prisma generate # the typed client tsc needs
+      - run: pnpm typecheck
+
+  api-contract:
+    name: api-contract (Zod, fully parallel)
+    needs: typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: npx prisma generate
+      # No browser: the contract layer uses API request contexts only.
+      - run: npx playwright test --project=contract
+
+  api-workflow:
+    name: api-workflow (serialized, NOT sharded)
+    needs: typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: npx prisma generate
+      # Single job by design — workers:1, global sim-clock ordering (see header).
+      - run: npx playwright test --project=workflow
+
+  ui:
+    name: ui (shard ${{ matrix.shard }}/4)
+    needs: typecheck
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: npx prisma generate
+      - run: npx playwright install --with-deps chromium
+      # Each shard is an ISOLATED server running a subset, serialized within.
+      - run: npx playwright test --project=ui --shard=${{ matrix.shard }}/4
+      - name: Upload blob report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: blob-report-${{ matrix.shard }}
+          path: blob-report/
+          retention-days: 7
+
+  compliance-gate:
+    name: compliance-gate (REQUIRED)
+    # This is the REQUIRED branch-protection check (PRD §B.5/§C.0): a red gate
+    # blocks merge regardless of the other jobs. Marking it "required" is a
+    # repo Settings → Branches action, not something the YAML can assert.
+    needs: typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: npx prisma generate
+      # The compliance project depends on ui, so the chromium browser is needed
+      # for the upstream UI journeys the pipeline re-runs before the gate.
+      - run: npx playwright install --with-deps chromium
+      # Runs the strict pipeline culminating in the @compliance gate; the custom
+      # reporter writes gate-summary.{md,html} at the repo root.
+      - run: npx playwright test --project=compliance
+      - name: Upload gate summary
+        # ALWAYS upload — a RED gate's summary (which boundary is MISSING) is the
+        # single most useful artifact of a failing run.
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: gate-summary
+          path: |
+            gate-summary.md
+            gate-summary.html
+          retention-days: 30
+          if-no-files-found: warn
+
+  merge-reports:
+    name: merge-reports -> Pages
+    # Stitch the sharded UI blob reports into one HTML report. `always()` so a
+    # failing shard still produces a viewable report.
+    needs: [ui]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Download blob reports
+        uses: actions/download-artifact@v4
+        with:
+          path: all-blob-reports
+          pattern: blob-report-*
+          merge-multiple: true
+      - run: npx playwright merge-reports --reporter html ./all-blob-reports
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: playwright-report/
