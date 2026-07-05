@@ -94,7 +94,6 @@ async function main(): Promise<void> {
       chainTxRef: 'smoke-dep-1',
     });
     check('deposit registered PENDING_CONFIRMATION', dep.status === 201 && dep.json.state === 'PENDING_CONFIRMATION');
-    const depId = dep.json.id as string;
 
     const adv1 = await api('POST', '/simulator/chain/advance', ADMIN, { blocks: 1 });
     check('chain advanced 1 block (GBPX needs 1 conf)', adv1.status === 200 && (adv1.json.settled as number) >= 1);

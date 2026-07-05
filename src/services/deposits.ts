@@ -5,7 +5,6 @@
 
 import { Prisma, type PrismaClient, type Transaction } from '@prisma/client';
 import type { Actor } from '../config.js';
-import type { Db } from '../db.js';
 import { conflict, notFound, unprocessable } from '../errors.js';
 import { getChain } from './clock.js';
 import { toMinor } from './money.js';
