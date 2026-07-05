@@ -5,7 +5,7 @@
 // time so parallel workers never observe a rewound world. NOTHING here asserts
 // on clock position — shapes only.
 
-import { test, ApiClient, PAST_COOLING_OFF_MS } from '../fixtures/index.js';
+import { test, ApiClient } from '../fixtures/index.js';
 import { expect } from './support/matchers.js';
 import {
   ChainAdvanceResultSchema,
@@ -13,11 +13,6 @@ import {
   ScreeningQueuedSchema,
   WebhookDelaySetSchema,
 } from './schemas/index.js';
-
-interface ChainStateBody {
-  blockHeight: number;
-  simClockMs: string;
-}
 
 test('GET /simulator/state -> 200 ChainState', async ({ asAdmin }) => {
   const res = await new ApiClient(asAdmin).get('/simulator/state');
@@ -33,17 +28,12 @@ test('POST /simulator/chain/advance -> 200 {blockHeight, simClockMs, settled}', 
   expect(res.json).toMatchSchema(ChainAdvanceResultSchema);
 });
 
-test('POST /simulator/clock/set (forward) -> 200 ChainState', async ({ asAdmin }) => {
-  const api = new ApiClient(asAdmin);
-  const current = await api.get<ChainStateBody>('/simulator/state');
-  // Forward by a FULL cooling-off window — the same delta the builders use.
-  // (A small delta could land after a concurrent builder jump and effectively
-  // rewind the shared clock; +25h keeps any interleaving forward-equivalent.)
-  const target = (BigInt(current.json.simClockMs) + PAST_COOLING_OFF_MS).toString();
-  const res = await api.post('/simulator/clock/set', { ms: target });
-  expect(res.status).toBe(200);
-  expect(res.json).toMatchSchema(ChainStateSchema);
-});
+// NOTE: the POST /simulator/clock/set shape test lives in the SERIALIZED
+// workflow project (tests/workflow/simulator-reset.spec.ts). clock/set is
+// ABSOLUTE (last-writer-wins): even a "forward" target computed from a stale
+// read can land after a concurrent worker's higher one and rewind global time
+// — the exact race D26 removed from the fixtures. No absolute clock ops in
+// this fully-parallel project; relative clock/advance is tested above.
 
 test('POST /simulator/clock/advance -> 200 ChainState (atomic relative advance, D26)', async ({
   asAdmin,

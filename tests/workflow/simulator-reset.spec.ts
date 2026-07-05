@@ -49,3 +49,18 @@ test('reset restores chain/clock/fault defaults (not the DB), then the world mov
   const after = await chain.state();
   expect(after.blockHeight).toBeGreaterThanOrEqual(12);
 });
+
+test('POST /simulator/clock/set (absolute) -> 200 ChainState — serialized-only shape test', async ({
+  asAdmin,
+  chain,
+}) => {
+  // clock/set is last-writer-wins, so its shape test lives HERE, not in the
+  // parallel contract project (see D26 and the note in contract/simulator.spec).
+  const admin = new ApiClient(asAdmin);
+  const target = (BigInt((await chain.state()).simClockMs) + PAST_COOLING_OFF_MS).toString();
+  const res = await admin.post<Record<string, unknown>>('/simulator/clock/set', { ms: target });
+  expect(res.status).toBe(200);
+  expect((res.json as { simClockMs: string }).simClockMs).toBe(target);
+  expect(res.json.blockHeight).toEqual(expect.any(Number));
+  expect(res.json.frozen).toEqual(expect.any(Boolean));
+});

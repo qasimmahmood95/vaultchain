@@ -16,22 +16,28 @@ export async function advanceChain(
   blocks: number,
   actor: Actor,
 ): Promise<{ blockHeight: number; simClockMs: string; settled: number }> {
-  const chain = await getChain(prisma);
-  const newHeight = chain.blockHeight + blocks;
-  const newClock = chain.frozen
-    ? BigInt(chain.simClockMs)
-    : BigInt(chain.simClockMs) + BigInt(blocks) * BLOCK_MS;
-  await prisma.chainState.update({
-    where: { id: chain.id },
-    data: { blockHeight: newHeight, simClockMs: newClock.toString() },
-  });
-  await writeAudit(prisma, {
-    actor,
-    action: 'SIM_CHAIN_ADVANCED',
-    entityType: 'ChainState',
-    entityId: chain.id,
-    before: { blockHeight: chain.blockHeight },
-    after: { blockHeight: newHeight, simClockMs: newClock.toString() },
+  // Height AND clock move RELATIVELY inside one DB transaction: a
+  // non-transactional read-modify-write here can race /simulator/clock/advance
+  // and write back a stale (lower) clock — the D26 rewind class.
+  const { newHeight, newClock } = await prisma.$transaction(async (db) => {
+    const chain = await getChain(db);
+    const height = chain.blockHeight + blocks;
+    const clock = chain.frozen
+      ? BigInt(chain.simClockMs)
+      : BigInt(chain.simClockMs) + BigInt(blocks) * BLOCK_MS;
+    await db.chainState.update({
+      where: { id: chain.id },
+      data: { blockHeight: height, simClockMs: clock.toString() },
+    });
+    await writeAudit(db, {
+      actor,
+      action: 'SIM_CHAIN_ADVANCED',
+      entityType: 'ChainState',
+      entityId: chain.id,
+      before: { blockHeight: chain.blockHeight },
+      after: { blockHeight: height, simClockMs: clock.toString() },
+    });
+    return { newHeight: height, newClock: clock };
   });
 
   // Recompute confirmations; settle anything that has reached its requirement.
