@@ -3,6 +3,7 @@
 
 import type { APIRequestContext } from '@playwright/test';
 import { test, ApiClient } from '../fixtures/index.js';
+import { RAW_KEYS } from '../../scripts/seed-lib.js';
 import { expect, expectProblem } from './support/matchers.js';
 import { HealthSchema, MeSchema, ProblemSchema } from './schemas/index.js';
 
@@ -67,4 +68,24 @@ test('GET /me with a bogus X-Api-Key -> 401 problem+json', async ({ request }) =
   const body: unknown = await res.json();
   expect(body).toMatchSchema(ProblemSchema);
   expect((body as { status?: number }).status).toBe(401);
+});
+
+test('the vc_key UI cookie does NOT authenticate the JSON API -> 401 (D27)', async ({ request }) => {
+  // A browser holding a valid UI session cookie must not be able to drive the
+  // §A.4 API without X-Api-Key — the cookie is a UI-only credential.
+  const res = await request.get('/me', {
+    headers: { cookie: `vc_key=${encodeURIComponent(RAW_KEYS.admin)}` },
+  });
+  expect(res.status(), 'cookie alone must not authenticate a JSON endpoint').toBe(401);
+  expect(res.headers()['content-type'] ?? '').toContain('application/problem+json');
+});
+
+test('the JSON API rejects urlencoded form posts -> 415 (parser is /ui-scoped, D27)', async ({ asOperatorA }) => {
+  // Even WITH a valid X-Api-Key, a §A.4 endpoint must not accept HTML form
+  // bodies — that parser lives only on /ui.
+  const res = await asOperatorA.post('/clients', {
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    data: 'legalName=Form+Co&type=INSTITUTION&jurisdiction=GB',
+  });
+  expect(res.status()).toBe(415);
 });

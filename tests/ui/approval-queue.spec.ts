@@ -47,6 +47,23 @@ test('checker approves from the queue; maker is refused; second checker complete
   await expect(page.getByTestId('travel-rule-count')).toContainText('0 record');
 });
 
+test('a malformed decision is rejected 400 and never defaults to approve (D27)', async ({ page, build }) => {
+  const funded = await build.fundedWallet({ asset: 'GBPX', amount: '4000.00' });
+  const dest = await build.activeAddress({ accountId: funded.accountId, asset: 'GBPX' });
+  const wd = await build.withdrawal({ walletId: funded.walletId, amount: '1500.00', address: dest.address });
+
+  // Direct form post with a decision the buttons never send (tampering).
+  const res = await page.request.post(`/ui/queue/${wd.id}/decision`, {
+    form: { decision: 'MAYBE', walletId: funded.walletId },
+  });
+  expect(res.status(), 'unknown decision must be 400, not a silent approve').toBe(400);
+
+  // The withdrawal is untouched — still awaiting approval.
+  await page.goto(`/ui/transactions/${wd.id}`);
+  await expect(page.getByTestId('tx-state')).toHaveText('PENDING_APPROVAL');
+  await expect(page.getByTestId('approvals-empty')).toBeVisible();
+});
+
 test('rejecting from the queue terminates the withdrawal', async ({ page, build }) => {
   const funded = await build.fundedWallet({ asset: 'GBPX', amount: '4000.00' });
   const dest = await build.activeAddress({ accountId: funded.accountId, asset: 'GBPX' });

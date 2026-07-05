@@ -15,7 +15,14 @@ export function buildApp(): FastifyInstance {
   const app = Fastify({ logger: process.env.NODE_ENV !== 'test' });
 
   // The UI posts plain HTML forms; fastify core only parses JSON (no extra dep).
-  app.addContentTypeParser('application/x-www-form-urlencoded', { parseAs: 'string' }, (_req, body, done) => {
+  // Scoped to /ui (D27): the JSON API must NOT accept HTML form posts, or a
+  // cookie-authenticated cross-site form could drive §A.4. Non-/ui urlencoded
+  // bodies are rejected 415 rather than parsed.
+  app.addContentTypeParser('application/x-www-form-urlencoded', { parseAs: 'string' }, (req, body, done) => {
+    if (!req.url.startsWith('/ui/')) {
+      done(new ApiProblem(415, 'unsupported-media-type', 'Unsupported Media Type', 'This endpoint accepts application/json only'), undefined);
+      return;
+    }
     done(null, Object.fromEntries(new URLSearchParams(body as string)));
   });
 

@@ -30,12 +30,10 @@
 <% if (it.canResolveHold) { %>
 <form class="inline" method="post" action="/ui/holds/<%= it.openHold.id %>/resolve">
   <input type="hidden" name="decision" value="RELEASE">
-  <input type="hidden" name="txId" value="<%= it.tx.id %>">
   <button type="submit" data-testid="hold-release">Release</button>
 </form>
 <form class="inline" method="post" action="/ui/holds/<%= it.openHold.id %>/resolve">
   <input type="hidden" name="decision" value="REJECT">
-  <input type="hidden" name="txId" value="<%= it.tx.id %>">
   <button type="submit" data-testid="hold-reject">Reject</button>
 </form>
 <% } else { %>

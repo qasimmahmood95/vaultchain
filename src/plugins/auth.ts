@@ -41,10 +41,15 @@ function cookieKey(request: FastifyRequest): string | undefined {
 export async function authenticate(request: FastifyRequest, reply: FastifyReply): Promise<void> {
   const path = request.url.split('?')[0] ?? '';
   if (PUBLIC_PATHS.has(path)) return;
-  const isUi = path.startsWith('/ui');
+  // '/ui/' — not '/ui' — so '/uianything' is NOT treated as a UI route (Nit 3).
+  const isUi = path.startsWith('/ui/');
 
   const header = request.headers['x-api-key'];
-  const rawKey = typeof header === 'string' && header.length > 0 ? header : cookieKey(request);
+  const headerKey = typeof header === 'string' && header.length > 0 ? header : undefined;
+  // The vc_key cookie is a UI-ONLY credential (D27): it must never authenticate
+  // the JSON API, so it is consulted only for /ui requests. API routes require
+  // X-Api-Key. This keeps the cookie's CSRF surface confined to /ui.
+  const rawKey = headerKey ?? (isUi ? cookieKey(request) : undefined);
   const apiKey = rawKey ? await prisma.apiKey.findUnique({ where: { keyHash: hashKey(rawKey) } }) : null;
   if (!apiKey || apiKey.status !== 'ACTIVE') {
     if (isUi) {

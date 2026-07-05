@@ -3,7 +3,7 @@
 // reuse the setup project's saved sessions instead of re-logging in.
 
 import { test, expect } from '../fixtures/index.js';
-import { RAW_KEYS } from '../../scripts/seed-lib.js';
+import { RAW_KEYS, clientKey } from '../../scripts/seed-lib.js';
 
 test('an unknown API key is rejected with a visible error', async ({ page }) => {
   await page.goto('/ui/login');
@@ -25,4 +25,12 @@ test('an unauthenticated deep link redirects to login', async ({ page }) => {
   await page.goto('/ui/transactions');
   await expect(page).toHaveURL(/\/ui\/login/);
   await expect(page.getByTestId('page-login')).toBeVisible();
+});
+
+test('a CLIENT key is refused at the admin login (staff-only surface, D27)', async ({ page }) => {
+  await page.goto('/ui/login');
+  await page.getByTestId('login-key').fill(clientKey(1));
+  await page.getByTestId('login-submit').click();
+  await expect(page.getByTestId('login-error')).toContainText('staff roles only');
+  await expect(page, 'a refused CLIENT stays on the login page').toHaveURL(/\/ui\/login/);
 });

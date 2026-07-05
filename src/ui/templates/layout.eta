@@ -23,7 +23,7 @@
       <a href="/ui/queue" data-testid="nav-queue">Approval queue</a>
       <a href="/ui/transactions" data-testid="nav-transactions">Transactions</a>
       <span class="muted" data-testid="nav-role">role: <%= it.actor.role %></span>
-      <a href="/ui/logout" data-testid="nav-logout">Log out</a>
+      <form class="inline" method="post" action="/ui/logout"><button type="submit" data-testid="nav-logout">Log out</button></form>
     </nav>
     <% } %>
   </header>

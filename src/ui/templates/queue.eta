@@ -36,5 +36,5 @@
 </table>
 <% if (it.items.length === 0) { %><p class="muted" data-testid="queue-empty">Nothing pending.</p><% } %>
 <% if (it.nextCursor) { %>
-<a data-testid="next-page" href="/ui/queue?cursor=<%= it.nextCursor %>&walletId=<%= it.walletId ?? '' %>">Next page</a>
+<a data-testid="next-page" href="/ui/queue?<%= it.nextQuery %>">Next page</a>
 <% } %>

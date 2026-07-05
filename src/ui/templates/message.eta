@@ -1,0 +1,4 @@
+<% layout("layout") %>
+<h1 data-testid="<%= it.testid %>"><%= it.heading %></h1>
+<p class="muted" data-testid="message-body"><%= it.message %></p>
+<p><a href="<%= it.backHref %>" data-testid="message-back"><%= it.backLabel %></a></p>
