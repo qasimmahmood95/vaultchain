@@ -4,36 +4,34 @@
 // were asserted by nothing. Lifecycle/refund semantics live in the serialized
 // workflow suite (forced-outcome.spec.ts); this file pins shapes only.
 //
-// Forcing here targets THIS test's own deposit (safe under parallel workers:
-// no clock reads, no screening queue, own data only).
+// PARALLEL-SAFETY: the force target is a PENDING_APPROVAL withdrawal — a
+// state no concurrent test's chain advance can settle out from under us.
+// (A pending DEPOSIT would be credited by any parallel advanceBlocks and turn
+// the expected 200 into a 409 — observed once before this design.)
 
 import { test, ApiClient } from '../fixtures/index.js';
 import { expect, expectProblem } from './support/matchers.js';
 import { TransactionRawSchema } from './schemas/index.js';
 
-test('force CONFIRMED -> 200 TransactionRaw; repeat -> 409; unknown id -> 404', async ({
-  asOperatorA,
+test('force FAILED -> 200 TransactionRaw; repeat -> 409; unknown id -> 404', async ({
   asAdmin,
   build,
 }) => {
-  const operator = new ApiClient(asOperatorA);
   const admin = new ApiClient(asAdmin);
 
-  // Own pending deposit (no chain advance needed — force is the point).
-  const account = await build.account({ assets: ['GBPX'] });
-  const wallet = account.wallets[0]!;
-  const dep = await operator.post<{ id: string }>(`/wallets/${wallet.id}/deposits/simulate`, {
-    amount: '10.00',
-    chainTxRef: build.uniqueRef('force-dep'),
-  });
-  expect(dep.status).toBe(201);
+  // Own pending withdrawal (maker = operatorA; nobody else approves it, and
+  // block advances cannot move a PENDING_APPROVAL transaction).
+  const funded = await build.fundedWallet({ asset: 'GBPX', amount: '3000.00' });
+  const dest = await build.activeAddress({ accountId: funded.accountId, asset: 'GBPX' });
+  const wd = await build.withdrawal({ walletId: funded.walletId, amount: '1500.00', address: dest.address });
 
-  const forced = await admin.post(`/simulator/tx/${dep.json.id}/force`, { outcome: 'CONFIRMED' });
+  const forced = await admin.post(`/simulator/tx/${wd.id}/force`, { outcome: 'FAILED' });
   expect(forced.status).toBe(200);
   expect(forced.json).toMatchSchema(TransactionRawSchema);
+  expect((forced.json as { state: string }).state).toBe('FAILED');
 
   // Already terminal -> 409 problem+json.
-  const again = await admin.post(`/simulator/tx/${dep.json.id}/force`, { outcome: 'FAILED' });
+  const again = await admin.post(`/simulator/tx/${wd.id}/force`, { outcome: 'CONFIRMED' });
   expectProblem(again, 409);
 
   // Unknown transaction -> 404 problem+json.

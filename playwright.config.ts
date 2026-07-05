@@ -10,7 +10,7 @@
 // executed serialized — `pnpm test` chains it with --workers=1 (DECISIONS.md
 // D21/D22). CI splits the projects into separate jobs anyway (PRD §B.5).
 
-import { defineConfig } from '@playwright/test';
+import { defineConfig, devices } from '@playwright/test';
 import { API_BASE } from './tests/fixtures/api-client.js';
 
 export default defineConfig({
@@ -49,6 +49,20 @@ export default defineConfig({
       // CRITICAL-1 — fullyParallel:false alone only serializes within a file).
       workers: 1,
       fullyParallel: false,
+    },
+    {
+      name: 'ui',
+      testDir: 'tests/ui',
+      // Runs AFTER workflow (strict project pipeline): UI journeys share the
+      // same global platform state, and one journey (hold release) uses the
+      // screening queue. Serialized for the same reason workflow is.
+      dependencies: ['setup', 'workflow'],
+      workers: 1,
+      fullyParallel: false,
+      // The one legitimately timing-prone layer gets retries ON CI ONLY,
+      // with traces for triage (PRD §B.6). Locally a flake must fail loudly.
+      retries: process.env.CI ? 2 : 0,
+      use: { ...devices['Desktop Chrome'] },
     },
   ],
 });

@@ -16,3 +16,4 @@ export type {
 } from './builders/index.js';
 export { PAST_COOLING_OFF_MS } from './builders/index.js';
 export type { Identity } from './auth.fixtures.js';
+export { UI_STATE, type UiRole } from './ui-states.js';

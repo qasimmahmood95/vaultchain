@@ -7,6 +7,7 @@ import { test as setup, expect, request } from '@playwright/test';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { API_BASE } from './api-client.js';
 import { AUTH_DIR, IDENTITY_FILE, ROLE_KEYS, type Identity } from './auth.fixtures.js';
+import { UI_STATE, type UiRole } from './ui-states.js';
 
 const EXPECTED_ROLE: Record<string, string> = {
   admin: 'ADMIN',
@@ -37,4 +38,16 @@ setup('resolve role identities against /me', async () => {
 
   mkdirSync(AUTH_DIR, { recursive: true });
   writeFileSync(IDENTITY_FILE, JSON.stringify(identities, null, 2));
+});
+
+setup('UI login per role -> storageState (§B.2: log in once, reuse everywhere)', async () => {
+  mkdirSync(AUTH_DIR, { recursive: true });
+  for (const role of Object.keys(UI_STATE) as UiRole[]) {
+    const ctx = await request.newContext({ baseURL: API_BASE });
+    const res = await ctx.post('/ui/login', { form: { apiKey: ROLE_KEYS[role]! } });
+    // Playwright follows the 303 to /ui/queue; the session cookie is in the jar.
+    expect(res.status(), `${role}: UI login must succeed`).toBe(200);
+    await ctx.storageState({ path: UI_STATE[role] });
+    await ctx.dispose();
+  }
 });
