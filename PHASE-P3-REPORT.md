@@ -135,6 +135,35 @@ Charter verdicts otherwise: UI journeys assert server state (maker-refusal genui
 | Minors 4–6 | Small UI-correctness batch; recommend alongside Majors 1–2. |
 | Nits 1–6 | Cosmetic batch; Nit 2 folds into Major 3's CAS. |
 
+### Post-report: pre-P4 batch (Stage 1) — APPLIED
+
+Owner commissioned all of the above as a pre-P4 batch on `main` (this supersedes the
+"nothing applied" note). Outcome:
+- **Major 1 fixed** — `/ui/login` rejects CLIENT keys + staff-role allowlist on all `/ui`
+  GETs (both layers); CLIENT login-refusal journey added (D27).
+- **Major 2 fixed** — `vc_key` cookie consulted only for `/ui/`; urlencoded parser
+  `/ui`-scoped; `SameSite=Lax` documented load-bearing; probes: cookie-without-`X-Api-Key`
+  → 401, form-post-on-JSON → 415 (D27).
+- **Major 3 + Minor 2 + Nit 2 fixed** — settlement path is compare-and-set
+  (`claimTransition`), confirmations only-raise, `forceTxOutcome` terminal-check inside its
+  transaction, `flushDueWebhooks` CAS on `attempts` (D28). **⚠ D28 records that no P4
+  compliance test may be written before verifying this landed** — the audit-completeness
+  assertions depend on it.
+- **Minors 4–6 fixed** — 404 renders a real not-found page; hold-resolve redirect derived
+  from the hold's own `transactionId`; unknown decision → 400 (+ probe).
+- **Minor 1 fixed** — `/simulator/clock/advance` denial rows in the authz matrix.
+- **Minor 3** — recorded as D29 (search-filter narrowing; no code change).
+- **Nits 1,3–6 fixed** — stale comment, `/ui/` path boundary, logout via POST, URL-encoded
+  next-page, flash-spoof accepted-and-noted.
+- **Bonus (flake root-cause):** a rare `insufficient-funds` in a full parallel run traced
+  to `advanceChain` settling GLOBAL pending deposits (a concurrent worker winning the CAS
+  claim mid-credit); `fundedWallet` now confirms the credit is visible before returning.
+
+Gate steps 1–2 re-run: **222 tests × 4 exit-code-gated green on `main`**
+(`docs/evidence/p3.txt`), reconciliation OK; defect map **still exactly 8**
+(`docs/evidence/p3-defects.txt`), UI now 9 branch-neutral. `v1-defects` re-anchored.
+Reference `D25` stands: strict schemas remain P4 work.
+
 ## 6. Commands for you to poke the result
 ```
 npx playwright test                    # full pipeline, one command
