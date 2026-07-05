@@ -66,6 +66,7 @@ export const chainClockTest = base.extend<{ chain: ChainApi }>({
     const api: ChainApi = {
       async state() {
         const res = await ctx.get('/simulator/state');
+        if (!res.ok()) throw new Error(`chain fixture: GET /simulator/state -> ${res.status()} ${await res.text()}`);
         return (await res.json()) as unknown as ChainState;
       },
       async advanceBlocks(blocks) {

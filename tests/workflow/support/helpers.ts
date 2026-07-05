@@ -1,9 +1,6 @@
-// Local support helpers for the WORKFLOW suite only.
-//
-// Fixture gaps are worked around HERE — never by editing tests/fixtures/**
-// (frozen during P2b). Shared code comes through ./world.js, which mirrors
-// the '../fixtures/index.js' surface (see the shim note there); nothing in
-// this file touches src/ or another suite.
+// Local support helpers for the WORKFLOW suite only. Shared code comes from
+// '../../fixtures/index.js' (the single cross-suite surface); nothing in this
+// file touches src/ or another suite.
 
 import { ApiClient } from '../../fixtures/index.js';
 import type { AccountHandle, ApiResult, ChainApi } from '../../fixtures/index.js';

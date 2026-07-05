@@ -228,6 +228,29 @@ test('semantic rejections -> 422 problem+json (scale, below-minimum, not allowli
   expectProblem(notAllowlisted, 422, 'address not allowlisted');
 });
 
+test('GET /withdrawals?state= filter narrows within own wallet scope', async ({
+  asOperatorA,
+  build,
+}) => {
+  const { funded, addr } = await withdrawalWorld(build);
+  const created = await build.withdrawal({
+    walletId: funded.walletId,
+    amount: '1500.00',
+    address: addr.address,
+  });
+  const api = new ApiClient(asOperatorA);
+
+  const pending = await api.get(`/withdrawals?walletId=${funded.walletId}&state=PENDING_APPROVAL`);
+  expect(pending.status).toBe(200);
+  expect(pending.json).toMatchSchema(page(TransactionSchema));
+  expect((pending.json as { items: Array<{ id: string }> }).items.map((i) => i.id)).toContain(created.id);
+
+  // Same wallet, non-matching state: the filter must exclude it.
+  const confirmed = await api.get(`/withdrawals?walletId=${funded.walletId}&state=CONFIRMED`);
+  expect(confirmed.status).toBe(200);
+  expect((confirmed.json as { items: unknown[] }).items).toHaveLength(0);
+});
+
 test('POST /withdrawals with a malformed body -> 400 problem+json', async ({
   asOperatorA,
   build,

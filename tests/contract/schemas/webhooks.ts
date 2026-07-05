@@ -3,15 +3,9 @@
 import { z } from 'zod';
 import { isoDateTime } from './common.js';
 
-export const WebhookEventSchema = z.enum([
-  'deposit.detected',
-  'deposit.credited',
-  'withdrawal.approved',
-  'withdrawal.broadcast',
-  'withdrawal.confirmed',
-  'hold.opened',
-  'hold.released',
-]);
+// NB: the spec's WebhookSubscription.events RESPONSE items are plain strings
+// (the enum constrains the REQUEST only), so no event-enum schema exists here
+// — response tightening is the D25 strict-schema pass (P4).
 
 /** components/schemas/WebhookSubscription */
 export const WebhookSubscriptionSchema = z.object({
