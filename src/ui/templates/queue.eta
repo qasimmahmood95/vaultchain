@@ -1,0 +1,40 @@
+<% layout("layout") %>
+<h1 data-testid="page-queue">Approval queue</h1>
+<form method="get" action="/ui/queue" data-testid="queue-filter">
+  <input name="walletId" placeholder="filter by wallet id" size="30"
+         value="<%= it.walletId ?? '' %>" data-testid="queue-filter-wallet">
+  <button type="submit" data-testid="queue-filter-submit">Filter</button>
+</form>
+<table>
+  <thead>
+    <tr><th>Withdrawal</th><th>Asset</th><th>Amount</th><th>Fee</th><th>Counterparty</th><th>VASP</th><th>Decide</th></tr>
+  </thead>
+  <tbody data-testid="queue-body">
+    <% it.items.forEach(function (tx) { %>
+    <tr data-testid="queue-row-<%= tx.id %>">
+      <td><a href="/ui/transactions/<%= tx.id %>" data-testid="queue-link-<%= tx.id %>"><%= tx.id %></a></td>
+      <td><%= tx.assetSymbol %></td>
+      <td><%= tx.amount %></td>
+      <td><%= tx.fee %></td>
+      <td><%= tx.counterpartyAddress %></td>
+      <td><%= tx.counterpartyVaspId ?? '—' %></td>
+      <td>
+        <form class="inline" method="post" action="/ui/queue/<%= tx.id %>/decision">
+          <input type="hidden" name="decision" value="APPROVE">
+          <input type="hidden" name="walletId" value="<%= it.walletId ?? '' %>">
+          <button type="submit" data-testid="approve-<%= tx.id %>">Approve</button>
+        </form>
+        <form class="inline" method="post" action="/ui/queue/<%= tx.id %>/decision">
+          <input type="hidden" name="decision" value="REJECT">
+          <input type="hidden" name="walletId" value="<%= it.walletId ?? '' %>">
+          <button type="submit" data-testid="reject-<%= tx.id %>">Reject</button>
+        </form>
+      </td>
+    </tr>
+    <% }) %>
+  </tbody>
+</table>
+<% if (it.items.length === 0) { %><p class="muted" data-testid="queue-empty">Nothing pending.</p><% } %>
+<% if (it.nextCursor) { %>
+<a data-testid="next-page" href="/ui/queue?cursor=<%= it.nextCursor %>&walletId=<%= it.walletId ?? '' %>">Next page</a>
+<% } %>

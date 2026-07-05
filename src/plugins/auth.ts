@@ -18,15 +18,41 @@ export function hashKey(rawKey: string): string {
   return createHash('sha256').update(rawKey).digest('hex');
 }
 
-const PUBLIC_PATHS = new Set(['/health']);
+const PUBLIC_PATHS = new Set(['/health', '/ui/login']);
 
-/** onRequest hook: resolve X-Api-Key to an Actor or 401. */
-export async function authenticate(request: FastifyRequest): Promise<void> {
-  if (PUBLIC_PATHS.has(request.url.split('?')[0] ?? '')) return;
-  const rawKey = request.headers['x-api-key'];
-  if (typeof rawKey !== 'string' || rawKey.length === 0) throw unauthorized();
-  const apiKey = await prisma.apiKey.findUnique({ where: { keyHash: hashKey(rawKey) } });
-  if (!apiKey || apiKey.status !== 'ACTIVE') throw unauthorized();
+/** The UI session cookie set by POST /ui/login — mirrors a raw API key (§A.5). */
+const UI_COOKIE = 'vc_key';
+
+function cookieKey(request: FastifyRequest): string | undefined {
+  const header = request.headers.cookie;
+  if (!header) return undefined;
+  for (const part of header.split(';')) {
+    const [name, ...rest] = part.trim().split('=');
+    if (name === UI_COOKIE) return decodeURIComponent(rest.join('='));
+  }
+  return undefined;
+}
+
+/**
+ * onRequest hook: resolve X-Api-Key (API) or the vc_key cookie (UI) to an
+ * Actor. Unauthenticated /ui requests redirect to the login page; API
+ * requests get a 401 problem.
+ */
+export async function authenticate(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+  const path = request.url.split('?')[0] ?? '';
+  if (PUBLIC_PATHS.has(path)) return;
+  const isUi = path.startsWith('/ui');
+
+  const header = request.headers['x-api-key'];
+  const rawKey = typeof header === 'string' && header.length > 0 ? header : cookieKey(request);
+  const apiKey = rawKey ? await prisma.apiKey.findUnique({ where: { keyHash: hashKey(rawKey) } }) : null;
+  if (!apiKey || apiKey.status !== 'ACTIVE') {
+    if (isUi) {
+      await reply.redirect('/ui/login', 303);
+      return;
+    }
+    throw unauthorized();
+  }
   request.actor = { apiKeyId: apiKey.id, role: apiKey.role as Role, clientId: apiKey.clientId };
 }
 

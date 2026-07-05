@@ -1,0 +1,12 @@
+<% layout("layout") %>
+<h1 data-testid="page-login">Sign in</h1>
+<p class="muted">Paste an API key. This is a mock platform: the seed prints its keys.</p>
+<form method="post" action="/ui/login" data-testid="login-form">
+  <label>API key
+    <input type="password" name="apiKey" data-testid="login-key" autocomplete="off" autofocus>
+  </label>
+  <button type="submit" data-testid="login-submit">Sign in</button>
+</form>
+<% if (it.error) { %>
+<p class="flash err" data-testid="login-error"><%= it.error %></p>
+<% } %>

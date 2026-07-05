@@ -1,0 +1,58 @@
+<% layout("layout") %>
+<h1 data-testid="page-detail">Transaction <%= it.tx.id %></h1>
+<table>
+  <tbody>
+    <tr><th>Type</th><td data-testid="tx-type"><%= it.tx.type %></td></tr>
+    <tr><th>State</th><td data-testid="tx-state"><%= it.tx.state %></td></tr>
+    <tr><th>Asset</th><td data-testid="tx-asset"><%= it.tx.assetSymbol %></td></tr>
+    <tr><th>Amount</th><td data-testid="tx-amount"><%= it.tx.amount %></td></tr>
+    <tr><th>Fee</th><td data-testid="tx-fee"><%= it.tx.fee %></td></tr>
+    <tr><th>Counterparty</th><td><%= it.tx.counterpartyAddress ?? '—' %></td></tr>
+    <tr><th>Counterparty VASP</th><td><%= it.tx.counterpartyVaspId ?? '—' %></td></tr>
+    <tr><th>Confirmations</th><td><%= it.tx.confirmations %></td></tr>
+  </tbody>
+</table>
+
+<h2>Approvals</h2>
+<% if (it.approvals.length === 0) { %><p class="muted" data-testid="approvals-empty">No decisions recorded.</p><% } %>
+<ul data-testid="approvals">
+  <% it.approvals.forEach(function (a) { %>
+  <li data-testid="approval-entry"><%= a.decision %> by <%= a.approverRole %> (<%= a.approverApiKeyId %>)</li>
+  <% }) %>
+</ul>
+
+<h2>Travel Rule</h2>
+<p data-testid="travel-rule-count"><%= it.travelRuleCount %> record(s) attached.</p>
+
+<% if (it.openHold) { %>
+<h2>Compliance hold</h2>
+<p data-testid="hold-open">OPEN hold <%= it.openHold.id %> — reason: <%= it.openHold.reason %></p>
+<% if (it.canResolveHold) { %>
+<form class="inline" method="post" action="/ui/holds/<%= it.openHold.id %>/resolve">
+  <input type="hidden" name="decision" value="RELEASE">
+  <input type="hidden" name="txId" value="<%= it.tx.id %>">
+  <button type="submit" data-testid="hold-release">Release</button>
+</form>
+<form class="inline" method="post" action="/ui/holds/<%= it.openHold.id %>/resolve">
+  <input type="hidden" name="decision" value="REJECT">
+  <input type="hidden" name="txId" value="<%= it.tx.id %>">
+  <button type="submit" data-testid="hold-reject">Reject</button>
+</form>
+<% } else { %>
+<p class="muted" data-testid="hold-no-resolve">Only a compliance officer can resolve this hold.</p>
+<% } %>
+<% } %>
+
+<h2>Timeline (audit)</h2>
+<table>
+  <thead><tr><th>Action</th><th>Actor role</th><th>At</th></tr></thead>
+  <tbody data-testid="timeline">
+    <% it.audit.forEach(function (entry) { %>
+    <tr data-testid="timeline-row">
+      <td data-testid="timeline-action"><%= entry.action %></td>
+      <td><%= entry.actorRole ?? 'system' %></td>
+      <td class="muted"><%= entry.createdAt %></td>
+    </tr>
+    <% }) %>
+  </tbody>
+</table>

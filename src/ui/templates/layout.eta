@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>VaultChain Admin — FICTIONAL</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 2rem auto; max-width: 72rem; padding: 0 1rem; }
+    table { border-collapse: collapse; width: 100%; margin: 1rem 0; }
+    th, td { border: 1px solid #aaa; padding: .35rem .5rem; text-align: left; font-size: .9rem; }
+    .flash { padding: .5rem .75rem; border: 1px solid #080; color: #060; margin: 1rem 0; }
+    .flash.err { border-color: #b00; color: #900; }
+    nav a, nav span { margin-right: 1rem; }
+    form.inline { display: inline; margin-right: .25rem; }
+    .muted { color: #666; font-size: .85rem; }
+  </style>
+</head>
+<body>
+  <header>
+    <strong>VaultChain</strong> <span class="muted">fictional mock custody — no real assets</span>
+    <% if (it.actor) { %>
+    <nav data-testid="nav">
+      <a href="/ui/queue" data-testid="nav-queue">Approval queue</a>
+      <a href="/ui/transactions" data-testid="nav-transactions">Transactions</a>
+      <span class="muted" data-testid="nav-role">role: <%= it.actor.role %></span>
+      <a href="/ui/logout" data-testid="nav-logout">Log out</a>
+    </nav>
+    <% } %>
+  </header>
+  <% if (it.flash) { %>
+  <p class="flash <%= it.flashKind === 'err' ? 'err' : '' %>" data-testid="flash"><%= it.flash %></p>
+  <% } %>
+  <%~ it.body %>
+</body>
+</html>

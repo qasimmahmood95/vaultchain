@@ -9,6 +9,8 @@ without a justification here gets removed.
   validation built in, no middleware zoo needed.
 - **@prisma/client** — typed SQLite client named in PRD §A.2; gives the migrations story
   and keeps handlers free of hand-rolled SQL.
+- **eta** — the server-rendered template engine for the §A.5 admin UI (D1: arrived in P3
+  with the UI). No frontend framework, no build step.
 
 ## Dev
 
@@ -25,7 +27,8 @@ without a justification here gets removed.
 
 ## Deliberately absent
 
-- **eta** (templates) — admin UI is P3 scope (see DECISIONS.md D1).
+- **@fastify/cookie / @fastify/formbody** — the UI needs one cookie read and one
+  urlencoded parser; both are ~6 lines against Node built-ins (plugins/auth.ts, app.ts).
 - **dotenv** — the SQLite URL is a literal in `schema.prisma` (DECISIONS.md D5); nothing
   else needs env config.
 - **openapi-to-zod generators** — would defeat the contract layer's purpose: a generated

@@ -1,0 +1,45 @@
+<% layout("layout") %>
+<h1 data-testid="page-transactions">Transaction search</h1>
+<form method="get" action="/ui/transactions" data-testid="search-form">
+  <input name="walletId" placeholder="wallet id" size="28" value="<%= it.q.walletId ?? '' %>" data-testid="search-wallet">
+  <select name="type" data-testid="search-type">
+    <option value="">any type</option>
+    <% ['DEPOSIT','WITHDRAWAL'].forEach(function (t) { %>
+    <option value="<%= t %>" <%= it.q.type === t ? 'selected' : '' %>><%= t %></option>
+    <% }) %>
+  </select>
+  <select name="state" data-testid="search-state">
+    <option value="">any state</option>
+    <% it.states.forEach(function (s) { %>
+    <option value="<%= s %>" <%= it.q.state === s ? 'selected' : '' %>><%= s %></option>
+    <% }) %>
+  </select>
+  <select name="assetSymbol" data-testid="search-asset">
+    <option value="">any asset</option>
+    <% ['BTC','ETH','GBPX'].forEach(function (a) { %>
+    <option value="<%= a %>" <%= it.q.assetSymbol === a ? 'selected' : '' %>><%= a %></option>
+    <% }) %>
+  </select>
+  <button type="submit" data-testid="search-submit">Search</button>
+</form>
+<table>
+  <thead>
+    <tr><th>Transaction</th><th>Type</th><th>State</th><th>Asset</th><th>Amount</th><th>Counterparty / ref</th></tr>
+  </thead>
+  <tbody data-testid="search-body">
+    <% it.items.forEach(function (tx) { %>
+    <tr data-testid="tx-row-<%= tx.id %>">
+      <td><a href="/ui/transactions/<%= tx.id %>" data-testid="tx-link-<%= tx.id %>"><%= tx.id %></a></td>
+      <td><%= tx.type %></td>
+      <td><%= tx.state %></td>
+      <td><%= tx.assetSymbol %></td>
+      <td><%= tx.amount %></td>
+      <td><%= tx.counterpartyAddress ?? tx.chainTxRef ?? '—' %></td>
+    </tr>
+    <% }) %>
+  </tbody>
+</table>
+<% if (it.items.length === 0) { %><p class="muted" data-testid="search-empty">No matches.</p><% } %>
+<% if (it.nextCursor) { %>
+<a data-testid="next-page" href="/ui/transactions?<%= it.nextQuery %>">Next page</a>
+<% } %>

@@ -8,10 +8,16 @@ import { registerCoreRoutes } from './routes/core.js';
 import { registerHoldRoutes } from './routes/holds.js';
 import { registerSimulatorRoutes } from './routes/simulator.js';
 import { registerWebhookRoutes } from './routes/webhooks.js';
+import { registerUiRoutes } from './routes/ui.js';
 import { registerDepositRoutes, registerWithdrawalRoutes } from './routes/withdrawals.js';
 
 export function buildApp(): FastifyInstance {
   const app = Fastify({ logger: process.env.NODE_ENV !== 'test' });
+
+  // The UI posts plain HTML forms; fastify core only parses JSON (no extra dep).
+  app.addContentTypeParser('application/x-www-form-urlencoded', { parseAs: 'string' }, (_req, body, done) => {
+    done(null, Object.fromEntries(new URLSearchParams(body as string)));
+  });
 
   app.addHook('onRequest', authenticate);
 
@@ -45,6 +51,7 @@ export function buildApp(): FastifyInstance {
   registerAuditRoutes(app);
   registerWebhookRoutes(app);
   registerSimulatorRoutes(app);
+  registerUiRoutes(app);
 
   return app;
 }
