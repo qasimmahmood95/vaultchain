@@ -1,0 +1,45 @@
+=== VaultChain Phase P3 — planted-defect evidence (defects-planted / v1-defects) ===
+=== captured: 2026-07-05T17:09:04Z | rebased onto main 7452558 ===
+
+Branch shape: main + one commit per defect:
+  5c531c0 test(evidence): P2 defect-branch run — 8 failures, all mapped to BUG-001/004/005/007
+  6451c49 BUG-007
+  dbe7e1f BUG-006
+  f6098bb BUG-005
+  f3813c9 BUG-004
+  8090fc3 BUG-003
+  6057835 BUG-002
+  63f1a50 BUG-001
+
+$ pnpm typecheck
+$ tsc --noEmit
+exit: 0
+
+$ npx playwright test  (bare: contract fails -> workflow/ui dependency-skipped)
+    x   88 [contract] › tests\contract\authz-matrix.spec.ts:410:5 › POST /holds/{id}/release as operatorB -> 403 (52ms)
+    x   86 [contract] › tests\contract\authz-matrix.spec.ts:410:5 › POST /holds/{id}/release as operatorA -> 403 (58ms)
+    x   93 [contract] › tests\contract\authz-matrix.spec.ts:410:5 › POST /holds/{id}/reject as admin -> 403 (16ms)
+    x   92 [contract] › tests\contract\authz-matrix.spec.ts:410:5 › POST /holds/{id}/reject as operatorA -> 403 (24ms)
+    x   89 [contract] › tests\contract\authz-matrix.spec.ts:410:5 › POST /holds/{id}/release as admin -> 403 (65ms)
+    5 failed
+    174 passed (26.4s)
+
+$ npx playwright test --project=workflow --no-deps
+    x   1 [workflow] › tests\workflow\allowlist-cooling-off.spec.ts:13:3 › allowlist cooling-off › withdrawal inside the cooling-off window is 422; after the sim clock passes it, the same withdrawal succeeds (759ms)
+    x  12 [workflow] › tests\workflow\idempotency.spec.ts:53:3 › idempotency › webhook replay: a re-delivered deposit.detected does NOT credit the deposit twice (167ms)
+    x  13 [workflow] › tests\workflow\money-precision.spec.ts:31:5 › money precision › GBPX withdrawal of 15.00: fee is exactly 0.02 (1.5 minor rounds up to even 2) (188ms)
+    3 failed
+    27 passed (24.9s)
+
+$ npx playwright test --project=ui --no-deps
+    7 passed (20.2s)
+
+=== FAILURE -> DEFECT MAP (unchanged through P3; P2 primaries only) ===
+  BUG-001 -> money-precision 15.00 fee (floor 0.01 vs half-even 0.02)
+  BUG-004 -> cooling-off: in-window withdrawal 201, required 422
+  BUG-005 -> authz-matrix: 5 hold-resolution rows 200/409, required 403
+  BUG-007 -> webhook replay double-credit
+  BUG-002/003/006 -> uncaught BY DESIGN (P4 compliance-gate primaries)
+  ALL 7 UI journeys PASS here: the UI layer is branch-neutral by design
+  (maker-checker refusal, dual approval, segregation-of-duties rendering,
+  and hold release all behave identically at the values the journeys use).
