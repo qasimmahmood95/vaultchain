@@ -12,10 +12,14 @@ record it here, continue. None of these change the API contract in `openapi/vaul
   un-sharded jobs because their sequences carry intra-project global-state ordering (settle-
   then-flag; the screening queue) that must run in one server in order; `ui` IS sharded
   because each shard is an isolated server running independent journeys, still serialized
-  within. Each job runs `--project=<x>`, so Playwright re-establishes that project's upstream
+  within. Most jobs run `--project=<x>`, so Playwright re-establishes that project's upstream
   dependencies on the job's own server — deliberate isolation over cross-runner state
-  sharing. `compliance-gate` is the REQUIRED branch-protection check (a Settings action, not
-  YAML). `review.yml` is the §D.3 advisory pattern: it runs a reviewer agent on PRs touching
+  sharing. **Exception (P4b combined-review Minor 1): the REQUIRED `compliance-gate` runs
+  `--project=setup --project=compliance --no-deps`** (the `npm run demo` command), so it
+  stands BESIDE the other jobs rather than subsuming them — a UI/workflow flake can never red
+  the compliance gate for an unrelated reason, and the gate is browser-free (request contexts
+  with storageState). `compliance-gate` is the REQUIRED branch-protection check (a Settings
+  action, not YAML). `review.yml` is the §D.3 advisory pattern: it runs a reviewer agent on PRs touching
   `tests/**` and posts a comment, `continue-on-error` and never required — an honest pattern
   demo, not an LLM merge gate. Like the Dockerfile (D2), the workflows are authored-to-spec
   but not executed here (no GHA runner); local evidence runs the same commands directly.

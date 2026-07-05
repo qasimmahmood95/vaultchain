@@ -139,7 +139,13 @@ jobs:
   compliance-gate:
     name: compliance-gate (REQUIRED)
     # This is the REQUIRED branch-protection check (PRD §B.5/§C.0): a red gate
-    # blocks merge regardless of the other jobs. Marking it "required" is a
+    # blocks merge REGARDLESS of the other jobs. So it must stand BESIDE them, not
+    # subsume them — it runs ONLY `setup` + `compliance` with `--no-deps`, exactly
+    # like `npm run demo`, against its own fresh-seeded server. It does NOT re-run
+    # contract/workflow/ui (those have their own jobs), so a UI flake can never
+    # turn the compliance gate red for an unrelated reason. Browser-free by
+    # construction: the compliance suite (incl. its UI-surface check) uses request
+    # contexts with storageState, never a live browser. Marking it "required" is a
     # repo Settings → Branches action, not something the YAML can assert.
     needs: typecheck
     runs-on: ubuntu-latest
@@ -152,12 +158,10 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: npx prisma generate
-      # The compliance project depends on ui, so the chromium browser is needed
-      # for the upstream UI journeys the pipeline re-runs before the gate.
-      - run: npx playwright install --with-deps chromium
-      # Runs the strict pipeline culminating in the @compliance gate; the custom
-      # reporter writes gate-summary.{md,html} at the repo root.
-      - run: npx playwright test --project=compliance
+      # Isolated compliance gate: `setup` writes storageState, then the 9 @compliance
+      # controls run against the same fresh server. The custom reporter writes
+      # gate-summary.{md,html} at the repo root.
+      - run: npx playwright test --project=setup --project=compliance --no-deps
       - name: Upload gate summary
         # ALWAYS upload — a RED gate's summary (which boundary is MISSING) is the
         # single most useful artifact of a failing run.
