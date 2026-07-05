@@ -24,7 +24,8 @@
     "test:contract": "playwright test --project=contract",
     "test:workflow": "playwright test --project=workflow",
     "test:compliance": "playwright test --project=compliance",
-    "test": "playwright test"
+    "test": "playwright test",
+    "demo": "playwright test --project=setup --project=compliance --no-deps"
   },
   "dependencies": {
     "@prisma/client": "^6.16.0",

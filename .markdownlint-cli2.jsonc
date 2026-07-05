@@ -8,7 +8,10 @@
     "MD025": false, // single-h1: PRD.md uses A/B/C/D + appendices as part-level H1 dividers on purpose
     "MD036": false, // emphasis-as-heading: intentional bold inline labels (appendix link groups, finding tags)
     "MD029": false, // ol-prefix: phase reports number findings CONTINUOUSLY across the Critical/Major/Minor/Nit sub-headings (1..15), and the triage tables reference those global numbers — a scheme ordered-list linting can't represent
-    "MD060": false // table pipe spacing: standard `| padded |` cells + `|---|` delimiters are idiomatic GFM
+    "MD060": false, // table pipe spacing: standard `| padded |` cells + `|---|` delimiters are idiomatic GFM
+    // The README's domain deep-dive is a deliberately COLLAPSIBLE section (PRD §D.1 §3):
+    // GitHub renders <details>/<summary>, which have no pure-Markdown equivalent.
+    "MD033": { "allowed_elements": ["details", "summary"] }
   },
   "globs": ["**/*.md"],
   // Respect .gitignore, so the gitignored answer key (BUGS.md), the generated
