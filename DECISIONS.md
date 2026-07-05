@@ -3,6 +3,31 @@
 Per the P1 working rules: where the PRD doesn't answer, make the smaller-scope choice,
 record it here, continue. None of these change the API contract in `openapi/vaultchain.yaml`.
 
+- **D27 — Admin UI is a STAFF-only surface; `vc_key` is a UI-only credential.** (P3 review
+  Majors 1+2, pre-P4 batch.) `/ui/login` rejects CLIENT keys (§A.5 says *admin* UI) AND the
+  `/ui` GET screens carry a staff-role allowlist (defence-in-depth, both layers). The
+  `vc_key` cookie is consulted ONLY for `/ui/*` requests — it must never authenticate the
+  JSON API — and the urlencoded body parser is scoped to `/ui/*` too, so no §A.4 endpoint
+  accepts HTML form posts. `SameSite=Lax` on the cookie is therefore load-bearing (the
+  CSRF surface is confined to `/ui`); this is documented at the set-cookie site and pinned
+  by an API probe (a cookie without `X-Api-Key` gets 401 on a JSON route).
+- **D28 — Settlement path uses compare-and-set transitions.** (P3 review Major 3 + Minor 2
+  + Nit 2.) `advanceChain`'s post-transaction settlement loop is reachable from
+  fully-parallel contract workers, so its state changes are now CAS (`claimTransition` /
+  state-guarded `updateMany`): only the winner screens/confirms a tx, confirmations are
+  only ever raised (no stale-height overwrite), `forceTxOutcome`'s terminal check moved
+  inside its `$transaction`, and `flushDueWebhooks` CAS-guards the `attempts` increment.
+  **⚠ P4 DEPENDENCY: no compliance test may be written before verifying this CAS landed —
+  the audit-completeness and webhook-count assertions depend on it** (a pre-CAS platform
+  would emit duplicate `TRANSACTION_*` audit rows / `withdrawal.confirmed` webhooks under
+  parallel advances and flake exactly those assertions).
+- **D29 — Transaction-search UI filters are walletId/type/state/asset.** (P3 review Minor
+  3.) §A.5 screen 3 lists "client, asset, state, date"; the UI implements the
+  API-canonical filters (the §A.4 transaction list filters on walletId/state, not clientId
+  or date) plus type/asset. Client- and date-range filtering are a UI-only convenience with
+  no API analogue and are deliberately not implemented in P3; add them only if a future
+  phase gives the API those query params.
+
 - **D1 — Admin UI deferred to P3.** PRD §C.2/P1 scopes P1 to the API/simulator/seeds;
   §A.5's server-rendered UI is first needed by the P3 UI journeys, so it (and the `eta`
   dependency) lands there.

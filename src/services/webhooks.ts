@@ -46,11 +46,14 @@ export async function flushDueWebhooks(db: Db): Promise<number> {
   let flushed = 0;
   for (const delivery of pending) {
     if (BigInt(delivery.dueAtSimMs) <= now) {
-      await db.webhookDelivery.update({
-        where: { id: delivery.id },
+      // CAS on status so concurrent flushes can't both increment `attempts`
+      // for the same delivery — only the PENDING -> DELIVERED winner counts
+      // (P3 review Nit 2, same class as the Major 3 settlement race).
+      const claimed = await db.webhookDelivery.updateMany({
+        where: { id: delivery.id, status: 'PENDING' },
         data: { status: 'DELIVERED', attempts: { increment: 1 }, deliveredAt: new Date() },
       });
-      flushed += 1;
+      if (claimed.count === 1) flushed += 1;
     }
   }
   return flushed;

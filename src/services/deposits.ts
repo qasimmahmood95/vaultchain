@@ -11,7 +11,7 @@ import { getChain } from './clock.js';
 import { toMinor } from './money.js';
 import { openHold } from './holds.js';
 import { nextScreeningOutcome } from './screening.js';
-import { transitionTx } from './transitions.js';
+import { claimTransition, transitionTx } from './transitions.js';
 import { emitEvent } from './webhooks.js';
 import { writeAudit } from './audit.js';
 
@@ -119,18 +119,24 @@ export async function creditDeposit(prisma: PrismaClient, txId: string, actor: A
   });
 }
 
-/** Confirmations reached: screen, then credit or hold. */
-export async function screenAndSettleDeposit(prisma: PrismaClient, txId: string, actor: Actor | null): Promise<void> {
-  const tx = await prisma.transaction.findUnique({ where: { id: txId } });
-  if (!tx || tx.state !== 'PENDING_CONFIRMATION') return;
-  const screening = await transitionTx(prisma, tx, 'SCREENING', actor);
+/**
+ * Confirmations reached: screen, then credit or hold. Returns whether THIS
+ * caller settled it. The PENDING_CONFIRMATION -> SCREENING move is a
+ * compare-and-set claim, so under concurrent chain advances only the winner
+ * screens — no double screening-queue consumption or duplicate audit rows
+ * (P3 review Major 3).
+ */
+export async function screenAndSettleDeposit(prisma: PrismaClient, txId: string, actor: Actor | null): Promise<boolean> {
+  const screening = await claimTransition(prisma, txId, 'PENDING_CONFIRMATION', 'SCREENING', actor);
+  if (!screening) return false;
   const outcome = await nextScreeningOutcome(prisma);
   if (outcome === 'FLAG') {
     await transitionTx(prisma, screening, 'HELD', actor);
-    await openHold(prisma, { transactionId: tx.id, reason: 'SCREENING_FLAG', actor });
-    return;
+    await openHold(prisma, { transactionId: txId, reason: 'SCREENING_FLAG', actor });
+    return true;
   }
-  await creditDeposit(prisma, tx.id, actor);
+  await creditDeposit(prisma, txId, actor);
+  return true;
 }
 
 /**

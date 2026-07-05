@@ -8,7 +8,7 @@ import { conflict, notFound } from '../errors.js';
 import { writeAudit } from './audit.js';
 import { getChain } from './clock.js';
 import { onDepositWebhook, screenAndSettleDeposit, type CreditResult } from './deposits.js';
-import { transitionTx } from './transitions.js';
+import { claimTransition, transitionTx } from './transitions.js';
 import { emitEvent, flushDueWebhooks } from './webhooks.js';
 
 export async function advanceChain(
@@ -47,15 +47,24 @@ export async function advanceChain(
   let settled = 0;
   for (const tx of pending) {
     const confirmations = Math.max(0, newHeight - (tx.broadcastBlockHeight ?? newHeight));
-    await prisma.transaction.update({ where: { id: tx.id }, data: { confirmations } });
+    // Only ever RAISE confirmations: a concurrent advance holding a stale lower
+    // height must not overwrite a higher count (the lost-update class D26 fixed
+    // for the clock; P3 review Major 3).
+    await prisma.transaction.updateMany({
+      where: { id: tx.id, confirmations: { lt: confirmations } },
+      data: { confirmations },
+    });
     const required = requiredBySymbol.get(tx.assetSymbol) ?? Number.MAX_SAFE_INTEGER;
     if (confirmations < required) continue;
-    settled += 1;
     if (tx.type === 'DEPOSIT') {
-      await screenAndSettleDeposit(prisma, tx.id, actor);
+      // CAS-claimed inside screenAndSettleDeposit: only the winner settles.
+      if (await screenAndSettleDeposit(prisma, tx.id, actor)) settled += 1;
     } else {
-      const confirmed = await transitionTx(prisma, { ...tx, confirmations } as Transaction, 'CONFIRMED', actor);
-      await emitEvent(prisma, 'withdrawal.confirmed', { transactionId: confirmed.id, confirmations });
+      const confirmed = await claimTransition(prisma, tx.id, 'PENDING_CONFIRMATION', 'CONFIRMED', actor);
+      if (confirmed) {
+        await emitEvent(prisma, 'withdrawal.confirmed', { transactionId: tx.id, confirmations });
+        settled += 1;
+      }
     }
   }
   await flushDueWebhooks(prisma);
@@ -113,44 +122,50 @@ export async function freezeClock(prisma: PrismaClient, frozen: boolean, actor: 
   });
 }
 
-/** Force CONFIRMED or FAILED. A failed already-debited withdrawal is refunded (D14). */
+/**
+ * Force CONFIRMED or FAILED. A failed already-debited withdrawal is refunded
+ * (D14). The terminal-state check and the state change happen inside ONE
+ * transaction (re-read within), closing the TOCTOU where a concurrent
+ * advanceChain could settle the tx between the check and the refund and get
+ * overwritten — refunding a withdrawal that actually confirmed (P3 review
+ * Minor 2).
+ */
 export async function forceTxOutcome(
   prisma: PrismaClient,
   txId: string,
   outcome: 'CONFIRMED' | 'FAILED',
   actor: Actor,
 ): Promise<Transaction> {
-  const tx = await prisma.transaction.findUnique({
-    where: { id: txId },
-    include: { wallet: { include: { account: true } } },
-  });
-  if (!tx) throw notFound('Transaction');
-  if (['CONFIRMED', 'FAILED', 'CREDITED', 'REJECTED', 'CANCELLED'].includes(tx.state)) {
-    throw conflict('already-terminal', `Transaction is already ${tx.state}`);
-  }
-
-  if (outcome === 'CONFIRMED') {
-    const confirmed = await transitionTx(prisma, tx, 'CONFIRMED', actor);
-    await emitEvent(prisma, 'withdrawal.confirmed', { transactionId: tx.id, forced: true });
-    return confirmed;
-  }
-
-  const wasDebited = tx.type === 'WITHDRAWAL' && ['BROADCAST', 'PENDING_CONFIRMATION'].includes(tx.state);
-  if (!wasDebited) return transitionTx(prisma, tx, 'FAILED', actor);
-
   return prisma.$transaction(async (db) => {
-    const wallet = await db.wallet.findUniqueOrThrow({ where: { id: tx.walletId } });
+    const tx = await db.transaction.findUnique({
+      where: { id: txId },
+      include: { wallet: { include: { account: true } } },
+    });
+    if (!tx) throw notFound('Transaction');
+    if (['CONFIRMED', 'FAILED', 'CREDITED', 'REJECTED', 'CANCELLED'].includes(tx.state)) {
+      throw conflict('already-terminal', `Transaction is already ${tx.state}`);
+    }
+
+    if (outcome === 'CONFIRMED') {
+      const confirmed = await transitionTx(db, tx, 'CONFIRMED', actor);
+      await emitEvent(db, 'withdrawal.confirmed', { transactionId: tx.id, forced: true });
+      return confirmed;
+    }
+
+    const wasDebited = tx.type === 'WITHDRAWAL' && ['BROADCAST', 'PENDING_CONFIRMATION'].includes(tx.state);
+    if (!wasDebited) return transitionTx(db, tx, 'FAILED', actor);
+
     const refund = BigInt(tx.amountMinor) + BigInt(tx.feeMinor);
     await db.wallet.update({
-      where: { id: wallet.id },
-      data: { balanceMinor: (BigInt(wallet.balanceMinor) + refund).toString() },
+      where: { id: tx.walletId },
+      data: { balanceMinor: (BigInt(tx.wallet.balanceMinor) + refund).toString() },
     });
     const clientId = tx.wallet.account.clientId;
     await db.ledgerEntry.create({
-      data: { walletId: wallet.id, clientId, direction: 'CREDIT', amountMinor: tx.amountMinor, kind: 'REFUND', txId: tx.id },
+      data: { walletId: tx.walletId, clientId, direction: 'CREDIT', amountMinor: tx.amountMinor, kind: 'REFUND', txId: tx.id },
     });
     await db.ledgerEntry.create({
-      data: { walletId: wallet.id, clientId, direction: 'CREDIT', amountMinor: tx.feeMinor, kind: 'REFUND', txId: tx.id },
+      data: { walletId: tx.walletId, clientId, direction: 'CREDIT', amountMinor: tx.feeMinor, kind: 'REFUND', txId: tx.id },
     });
     return transitionTx(db, tx, 'FAILED', actor, { confirmations: tx.confirmations });
   });
