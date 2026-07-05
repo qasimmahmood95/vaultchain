@@ -20,3 +20,18 @@ RECONCILIATION OK: invariant holds across 276 wallets
 $ pnpm smoke
 == SMOKE PASSED ==
 exit: 0
+
+=== PRE-P4 BATCH (P3 review Majors 1-3, Minors 1-6, Nits 1-6) — gate steps 1-2 re-run ===
+captured: 2026-07-05T17:45:31Z | commit: 19c9ca0
+New: 222 tests (+6): CLIENT login-refusal, cookie-401 + form-415 API probes,
+malformed-decision 400, clock/advance authz rows. Settlement now CAS (D28);
+admin UI staff-only + cookie UI-only (D27); fundedWallet confirms credit visible.
+
+$ npx playwright test  (x4 exit-code-gated: fresh + 3x KEEP_DB)
+  222 passed (36.0s)
+  222 passed (25.1s)
+  222 passed (25.2s)
+  222 passed (23.4s)
+
+$ npx tsx scripts/check-invariant.ts   (after a full synchronous seed)
+RECONCILIATION OK: invariant holds across 48 wallets
