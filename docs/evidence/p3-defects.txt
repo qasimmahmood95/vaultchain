@@ -43,3 +43,15 @@ $ npx playwright test --project=ui --no-deps
   ALL 7 UI journeys PASS here: the UI layer is branch-neutral by design
   (maker-checker refusal, dual approval, segregation-of-duties rendering,
   and hold release all behave identically at the values the journeys use).
+
+=== PRE-P4 BATCH — defect-branch verification (2026-07-05T17:53:20Z, rebased onto main f6f0bfa) ===
+The 8-failure map is UNCHANGED after the batch. The +6 new main tests
+(CLIENT login-refusal, cookie-401, form-415, malformed-decision, clock/advance
+authz x2) all PASS here — they assert main's correct behaviour, which the seven
+planted defects do not touch.
+
+  contract (bare):        5 failed / 178 passed  -> the 5 BUG-005 hold-resolution rows
+  workflow (--no-deps):   3 failed / 27 passed   -> BUG-004 cooling-off, BUG-007 replay, BUG-001 15.00 fee
+  ui (--no-deps):         9 passed               -> branch-neutral (was 7; +2 new S1 journeys pass)
+
+  BUG-002/003/006 remain uncaught by design (P4 compliance-gate primaries).
