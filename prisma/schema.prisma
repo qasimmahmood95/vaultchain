@@ -8,7 +8,15 @@ generator client {
 
 datasource db {
   provider = "sqlite"
-  url      = "file:./vaultchain.db"
+  // connection_limit=1 is LOAD-BEARING (D35): concurrent interactive
+  // transactions that read-then-write (addApproval, resolveHoldCore, ...)
+  // deadlock on SQLite's shared->exclusive lock upgrade when the pool has
+  // multiple connections — SQLITE_BUSY / 5s transaction timeouts -> 500s
+  // under the dual-approval volley (caught by the FIRST CI run on a 2-core
+  // runner; invisible on faster dev machines). One connection serializes
+  // transactions at the pool, so racing losers surface as clean 403/409,
+  // matching the maker-checker design. Still a literal URL (D5).
+  url = "file:./vaultchain.db?connection_limit=1"
 }
 
 model Client {

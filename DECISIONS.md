@@ -3,6 +3,19 @@
 Per the P1 working rules: where the PRD doesn't answer, make the smaller-scope choice,
 record it here, continue. None of these change the API contract in `openapi/vaultchain.yaml`.
 
+- **D35 — SQLite pool is a single connection (`?connection_limit=1`), and that is
+  load-bearing.** (Post-P4b: caught by the FIRST real CI execution.) The dual-approval
+  volley — three simultaneous interactive transactions that read-then-write the same rows —
+  deadlocks on SQLite's shared→exclusive lock upgrade when the Prisma pool holds multiple
+  connections: SQLITE_BUSY + 5s transaction timeouts surfaced as `[500,500,500]` on the
+  2-core GitHub runner, while faster dev machines never interleave the transactions
+  (volley ×25 green locally before the fix). One pooled connection serializes transactions
+  at the pool, making the upgrade deadlock impossible; racing losers now surface as the
+  designed 403/409. Cost: ~15s on the parallel contract phase (35s → ~50s full pipeline) —
+  accepted for a mock platform whose correctness story is exactly "atomic under
+  concurrency". The URL stays a literal (D5). The defect-branch demo is unaffected:
+  BUG-002's planted code has no transaction at all, so its catch (`[201,201,403]`) is
+  identical under one connection.
 - **D34 — CI job graph maps the strict serialized pipeline to isolated per-project
   jobs; only `ui` is sharded.** (P4b, PRD §B.5.) `.github/workflows/ci.yml` implements the
   §B.5 graph: `lint` → `typecheck` → {`api-contract`, `api-workflow`, `ui` (4-way shard),

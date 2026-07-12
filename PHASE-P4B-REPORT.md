@@ -171,3 +171,18 @@ outstanding item before the repo is made public.
 - [ ] **Final adversarial gate** — deferred to a separate BUGS.md-blind session (§8).
 
 **STOP after P4b — the only remaining step is the independent adversarial gate (§8).**
+
+## Post-report: first real CI execution (private push) — one genuine catch, fixed
+
+The repo was pushed to a **private** GitHub repo ahead of the adversarial gate, and the
+authored-but-never-executed `ci.yml` ran for the first time. Six of seven jobs passed
+first-try (lint, typecheck, api-contract, api-workflow, ui ×4 shards, merge-reports). The
+**required `compliance-gate` failed** — and for a real reason: the dual-approval volley
+returned `[500,500,500]` on the 2-core runner. Root cause: concurrent read-then-write
+interactive transactions deadlock on SQLite's lock upgrade with a multi-connection pool
+(SQLITE_BUSY + 5s transaction timeouts); invisible on faster dev machines (volley ×25 was
+green locally on the same code). Fixed at the platform root with `?connection_limit=1` on
+the datasource (D35) — transactions serialize at the pool and racing losers get their
+designed 403/409. Re-verified: 231 ×2 green + volley ×25 green locally, defect branch
+rebased (map still 12, BUG-002 catch unchanged), CI re-run green. Exactly the class of
+finding the 0-retry gate policy (§B.6) exists to refuse to hide.
