@@ -1,16 +1,21 @@
 // Scenario 2 — reconciliation under load (P5). N worker loops sustain a mixed
 // deposit/withdrawal stream against the platform for a configured duration
-// (default 60s), then the ledger invariant (Σ(ledger) == wallet.balanceMinor,
-// EVERY wallet) must hold — the direct no-lost-update proof. Each worker owns
-// its wallet so the load is conflict-free BY DESIGN at the domain level; the
-// contention is all infrastructural (the single-connection SQLite pool, the
-// global chain-advance settlement loop and its D28 CAS claims), which is
-// exactly the layer this scenario interrogates.
+// (default 60s), then TWO truths must hold with the server quiescent:
+//   1. the ledger invariant (Σ(ledger) == wallet.balanceMinor, EVERY wallet)
+//      — the no-lost-update proof; and
+//   2. the exactly-once sweep (review Major 1): one PRINCIPAL CREDIT + one
+//      ProcessedEvent per credited deposit, one PRINCIPAL + one FEE DEBIT per
+//      debited withdrawal — because a CONSISTENT double-settlement (balance
+//      and ledger both written twice) would reconcile and slip past check 1.
+// Each worker owns its wallet so the load is conflict-free BY DESIGN at the
+// domain level; the contention is all infrastructural (the single-connection
+// SQLite pool, the global chain-advance settlement loop and its D28 CAS
+// claims), which is exactly the layer this scenario interrogates.
 
 import { PrismaClient } from '@prisma/client';
 import { RAW_KEYS, makeRng } from '../../scripts/seed-lib.js';
 import type { PerfConfig, Baselines } from '../support/config.js';
-import { checkInvariant } from '../support/db.js';
+import { checkExactlyOnce, checkInvariant } from '../support/db.js';
 import { PerfApi } from '../support/http.js';
 import { atLeastFactor, check, withinMultiple, type Check, type ScenarioOutcome } from '../support/outcome.js';
 import { resetDatabase, startServer } from '../support/server.js';
@@ -102,9 +107,15 @@ export async function runReconciliationLoad(cfg: PerfConfig, baselines: Baseline
     );
     const elapsedSec = (performance.now() - startedAt) / 1000;
 
-    // -- The verdict: the invariant, checked over EVERY wallet (workers' AND
-    // the seeded book), with the server quiescent.
+    // -- The verdict: the invariant over EVERY wallet (workers' AND the
+    // seeded book) PLUS the exactly-once sweep, with the server quiescent.
+    // 'perf-' covers both the workers' refs (perf-rl-*) and the funding
+    // deposits (perf-load-funding-*).
     const invariant = await checkInvariant(prisma);
+    const exactlyOnce = await checkExactlyOnce(prisma, {
+      depositRefPrefix: 'perf-',
+      withdrawalAddressPrefix: 'vc-ext-gbpx-perf-load-',
+    });
 
     const total = samples.length;
     const rps = round2(total / elapsedSec);
@@ -129,6 +140,7 @@ export async function runReconciliationLoad(cfg: PerfConfig, baselines: Baseline
     summaryLines.push(
       `overall: p50 ${overall.p50Ms}ms  p95 ${overall.p95Ms}ms  p99 ${overall.p99Ms}ms`,
       `invariant: ${invariant.mismatches.length === 0 ? 'HOLDS' : 'BROKEN'} across ${invariant.wallets} wallets`,
+      `exactly-once: ${exactlyOnce.problems.length === 0 ? 'HOLDS' : 'BROKEN'} over ${exactlyOnce.creditedDeposits} credited deposits + ${exactlyOnce.debitedWithdrawals} debited withdrawals`,
     );
 
     const hardChecks: Check[] = [
@@ -141,6 +153,13 @@ export async function runReconciliationLoad(cfg: PerfConfig, baselines: Baseline
               .slice(0, 3)
               .map((m) => `${m.walletId} drift ${(m.ledger - m.balance).toString()}`)
               .join(' | '),
+      ),
+      check(
+        'ledger trail is exactly-once',
+        exactlyOnce.problems.length === 0,
+        exactlyOnce.problems.length === 0
+          ? `1 credit + 1 ProcessedEvent per credited deposit (${exactlyOnce.creditedDeposits}); 1 principal + 1 fee debit per debited withdrawal (${exactlyOnce.debitedWithdrawals})`
+          : exactlyOnce.problems.slice(0, 3).join(' | '),
       ),
       check('no 5xx under sustained load', fiveXX === 0, `${fiveXX} responses >= 500 of ${total}`),
       check('no unexpected statuses', unexpected === 0, `${unexpected} responses off the designed happy path`),

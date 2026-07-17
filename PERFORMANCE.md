@@ -21,7 +21,7 @@ hiding in prose. Three scenarios, three claims:
 | Scenario (`pnpm perf -- --scenario=<name>`) | The claim it proves |
 |---|---|
 | `approval-contention` | N simultaneous approval attempts (2 → 512) on one shared withdrawal never produce a 5xx, never duplicate an approval, always elect **exactly two** winners (dual-approval policy), and always land the withdrawal in the designed state. The **knee point** — where added concurrency stops buying throughput and starts buying queue depth — is measured and recorded. |
-| `reconciliation-under-load` | After 60 seconds of sustained mixed deposits/withdrawals from 8 concurrent workers, `Σ(ledger) == wallet.balanceMinor` holds on **every** wallet — the direct no-lost-update proof — with zero 5xx and zero off-design statuses. |
+| `reconciliation-under-load` | After 60 seconds of sustained mixed deposits/withdrawals from 8 concurrent workers, `Σ(ledger) == wallet.balanceMinor` holds on **every** wallet — the direct no-lost-update proof — AND the trail is **exactly-once** (one credit + one ProcessedEvent per credited deposit, one principal + one fee debit per debited withdrawal; a *consistent* double-settlement would reconcile, so the invariant alone is not enough), with zero 5xx and zero off-design statuses. |
 | `read-path-baseline` | At ~20k withdrawals (+20k deposits + audit trail), cursor paging is **complete, duplicate-free, and terminating** over the full chain, and list-endpoint p95/p99 are pinned against committed baselines. |
 
 ## What the numbers do NOT mean

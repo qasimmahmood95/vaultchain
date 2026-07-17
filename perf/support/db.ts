@@ -47,6 +47,84 @@ export async function checkInvariant(prisma: PrismaClient): Promise<InvariantRes
   return { wallets: wallets.length, mismatches };
 }
 
+export interface ExactlyOnceResult {
+  creditedDeposits: number;
+  debitedWithdrawals: number;
+  problems: string[];
+}
+
+/**
+ * Exactly-once sweep (P5 review Major 1). The reconciliation invariant alone
+ * is blind to a CONSISTENT double-settlement: a duplicate credit that bumps
+ * the balance AND writes a second ledger row still reconciles. This sweep
+ * pins the exactly-once claims directly:
+ *   - every CREDITED deposit has EXACTLY ONE PRINCIPAL CREDIT ledger row and
+ *     EXACTLY ONE ProcessedEvent claim for its (walletId, chainTxRef);
+ *   - every debited withdrawal (BROADCAST and beyond) has EXACTLY ONE
+ *     PRINCIPAL DEBIT and EXACTLY ONE FEE DEBIT row.
+ * Scoped by the scenario's own reference/address prefixes so the sweep stays
+ * meaningful regardless of what the base seed contains.
+ */
+export async function checkExactlyOnce(
+  prisma: PrismaClient,
+  opts: { depositRefPrefix: string; withdrawalAddressPrefix: string },
+): Promise<ExactlyOnceResult> {
+  const problems: string[] = [];
+
+  const credited = await prisma.transaction.findMany({
+    where: { type: 'DEPOSIT', state: 'CREDITED', chainTxRef: { startsWith: opts.depositRefPrefix } },
+    select: { id: true, walletId: true, chainTxRef: true },
+  });
+  const creditGroups = await prisma.ledgerEntry.groupBy({
+    by: ['txId'],
+    where: { txId: { in: credited.map((t) => t.id) }, direction: 'CREDIT', kind: 'PRINCIPAL' },
+    _count: { _all: true },
+  });
+  const creditsByTx = new Map(creditGroups.map((g) => [g.txId, g._count._all]));
+  for (const t of credited) {
+    const n = creditsByTx.get(t.id) ?? 0;
+    if (n !== 1) problems.push(`deposit ${t.id}: ${n} PRINCIPAL CREDIT rows (expected exactly 1)`);
+  }
+
+  const events = await prisma.processedEvent.groupBy({
+    by: ['walletId', 'chainTxRef'],
+    where: { chainTxRef: { startsWith: opts.depositRefPrefix } },
+    _count: { _all: true },
+  });
+  for (const g of events) {
+    if (g._count._all !== 1) problems.push(`processed event (${g.walletId}, ${g.chainTxRef}): ${g._count._all} rows`);
+  }
+  const eventKeys = new Set(events.map((g) => `${g.walletId}|${g.chainTxRef}`));
+  for (const t of credited) {
+    if (!eventKeys.has(`${t.walletId}|${t.chainTxRef ?? ''}`)) {
+      problems.push(`deposit ${t.id}: CREDITED without a ProcessedEvent claim`);
+    }
+  }
+
+  const debited = await prisma.transaction.findMany({
+    where: {
+      type: 'WITHDRAWAL',
+      state: { in: ['BROADCAST', 'PENDING_CONFIRMATION', 'CONFIRMED'] },
+      counterpartyAddress: { startsWith: opts.withdrawalAddressPrefix },
+    },
+    select: { id: true },
+  });
+  const debitGroups = await prisma.ledgerEntry.groupBy({
+    by: ['txId', 'kind'],
+    where: { txId: { in: debited.map((t) => t.id) }, direction: 'DEBIT' },
+    _count: { _all: true },
+  });
+  const debitsByTxKind = new Map(debitGroups.map((g) => [`${g.txId}|${g.kind}`, g._count._all]));
+  for (const t of debited) {
+    for (const kind of ['PRINCIPAL', 'FEE']) {
+      const n = debitsByTxKind.get(`${t.id}|${kind}`) ?? 0;
+      if (n !== 1) problems.push(`withdrawal ${t.id}: ${n} ${kind} DEBIT rows (expected exactly 1)`);
+    }
+  }
+
+  return { creditedDeposits: credited.length, debitedWithdrawals: debited.length, problems };
+}
+
 export interface ScaleSeedResult {
   clientId: string;
   accountId: string;
