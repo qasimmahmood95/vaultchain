@@ -3,6 +3,38 @@
 Per the P1 working rules: where the PRD doesn't answer, make the smaller-scope choice,
 record it here, continue. None of these change the API contract in `openapi/vaultchain.yaml`.
 
+- **D37 — The perf layer is a standalone `tsx` harness under `perf/`, not a Playwright
+  project.** (P5.) Playwright's runner earns nothing here (no fixtures, no browser, no
+  retries policy — perf runs are 0-retry by definition) and adding a fifth project would
+  entangle the §B.4 strict pipeline with multi-minute load runs. Shape: each scenario
+  boots its OWN fresh server (reset → migrate → seed → spawn `node --import tsx
+  src/server.ts`) on a dedicated port (default 3100) so a stray Playwright webServer on
+  :3000 can never be measured by mistake, and hard-kills it after — same fresh-DB
+  semantics as `scripts/test-serve.ts`. Scenario parameters + regression tolerances live
+  in `perf/perf.config.json` (hand-authored); recorded numbers live in
+  `perf/baselines.json` (machine-written by `pnpm perf:baseline`, committed). A run fails
+  (exit ≠ 0) on any hard correctness bound (5xx, duplicate approvals, invariant breach)
+  or on latency/throughput regression beyond the configured multipliers against the
+  committed baselines. Perf is NOT wired into the required CI path (scope: the §B.5 graph
+  is a functional gate; latency baselines are machine-relative — see PERFORMANCE.md) —
+  it is a local/nightly tool with an honest exit code.
+- **D36 — Perf tooling is autocannon + a thin TypeScript harness (rejecting k6 and
+  Artillery).** (P5.) The deciding constraint: every P5 scenario's real assertion is
+  **DB truth** (exactly-one approval row per approver, Σ(ledger)==balance after load,
+  cursor-chain completeness at volume), not an HTTP metric — so the load driver must run
+  in the same runtime as the Prisma client and the seed machinery. k6 scripts execute in
+  a Go-embedded JS engine (no Node modules, no Prisma, TS only via a bundling step, plus
+  a non-npm binary that breaks the clean-clone story); Artillery is Node but YAML-first
+  and metric-centric, so the correctness checks land in processor-hook escape hatches and
+  its large dependency tree buys nothing the repo needs. autocannon is a single pure-Node
+  dev dependency with HDR-histogram latencies (p50/p95/p99) used where raw sustained HTTP
+  load is the point (the read-path baseline); the write-contention scenarios are
+  orchestrated TS volleys/worker-loops (the compliance gate's own `Promise.all` pattern,
+  scaled) because their per-response + post-hoc DB assertions ARE the scenario. Known
+  ceiling, stated up front: SQLite behind a single pooled connection (D35) serializes
+  every write transaction, so throughput plateaus early by design — the numbers exist to
+  prove contention CORRECTNESS (clean 403/409 losers, no lost updates, a recorded knee),
+  never to impress.
 - **D35 — SQLite pool is a single connection (`?connection_limit=1`), and that is
   load-bearing.** (Post-P4b: caught by the FIRST real CI execution.) The dual-approval
   volley — three simultaneous interactive transactions that read-then-write the same rows —

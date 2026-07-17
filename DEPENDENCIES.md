@@ -25,6 +25,14 @@ without a justification here gets removed.
 - **zod** — independent re-encoding of `openapi/vaultchain.yaml` for the contract layer
   (PRD §B.3); deliberately NOT generated from server types so drift is detectable.
 
+## Dev — performance layer (P5)
+
+- **autocannon** — HDR-histogram HTTP load generation for the read-path baseline
+  (DECISIONS.md D36); pure-Node dev dependency, no external binary. The write-contention
+  scenarios deliberately do NOT use it — they are orchestrated TS volleys whose
+  assertions are DB truth.
+- **@types/autocannon** — autocannon ships no types; `strict` typecheck is the DoD.
+
 ## Deliberately absent
 
 - **@fastify/cookie / @fastify/formbody** — the UI needs one cookie read and one
