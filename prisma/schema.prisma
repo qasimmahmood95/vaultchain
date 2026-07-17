@@ -157,6 +157,11 @@ model TravelRuleRecord {
   direction     String // ORIGINATOR | BENEFICIARY
   payload       String // JSON: name, accountRef, physicalAddress?, dateOfBirth?
   createdAt     DateTime    @default(now())
+
+  // One record per direction per transaction: makes a concurrent double-attach
+  // impossible at the DB layer (adversarial gate F3), mirroring the maker-checker
+  // unique constraint. The second racing attach hits P2002 -> 409.
+  @@unique([transactionId, direction])
 }
 
 // Append-only: no update/delete path exists in the API.

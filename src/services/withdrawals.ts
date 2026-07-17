@@ -2,7 +2,7 @@
 // policy -> Travel Rule (AT OR ABOVE threshold, >=) -> screening -> broadcast
 // -> confirmations. Funds (amount + fee) are debited at BROADCAST.
 
-import type { PrismaClient, Transaction, Asset } from '@prisma/client';
+import { Prisma, type PrismaClient, type Transaction, type Asset } from '@prisma/client';
 import {
   MOCK_FIAT_RATES,
   TRAVEL_RULE_THRESHOLD_FIAT_MINOR,
@@ -219,20 +219,36 @@ export async function attachTravelRule(
     );
   }
 
-  await prisma.travelRuleRecord.create({
-    data: { transactionId: tx.id, direction: 'ORIGINATOR', payload: JSON.stringify(input.originator) },
-  });
-  await prisma.travelRuleRecord.create({
-    data: { transactionId: tx.id, direction: 'BENEFICIARY', payload: JSON.stringify(input.beneficiary) },
-  });
-  await writeAudit(prisma, {
-    actor: input.actor,
-    action: 'TRAVEL_RULE_ATTACHED',
-    entityType: 'Transaction',
-    entityId: tx.id,
-    after: { originatorName: input.originator.name, beneficiaryName: input.beneficiary.name },
-  });
+  // Both records + the audit entry commit atomically. The (transactionId,
+  // direction) unique constraint makes a CONCURRENT double-attach fail here
+  // (P2002 -> 409) instead of duplicating the compliance records and re-running
+  // the screening/broadcast gate — the exactly-once property the audit gate
+  // depends on (adversarial gate F3; same shape as the maker-checker fix).
+  try {
+    await prisma.$transaction(async (db) => {
+      await db.travelRuleRecord.create({
+        data: { transactionId: tx.id, direction: 'ORIGINATOR', payload: JSON.stringify(input.originator) },
+      });
+      await db.travelRuleRecord.create({
+        data: { transactionId: tx.id, direction: 'BENEFICIARY', payload: JSON.stringify(input.beneficiary) },
+      });
+      await writeAudit(db, {
+        actor: input.actor,
+        action: 'TRAVEL_RULE_ATTACHED',
+        entityType: 'Transaction',
+        entityId: tx.id,
+        after: { originatorName: input.originator.name, beneficiaryName: input.beneficiary.name },
+      });
+    });
+  } catch (err) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+      throw conflict('travel-rule-already-attached', 'Travel Rule data has already been attached to this withdrawal');
+    }
+    throw err;
+  }
 
+  // Only the winner of the unique-constraint race reaches here, so the screening/
+  // broadcast gate runs exactly once.
   if (tx.state === 'TRAVEL_RULE_CHECK') return screenAndBroadcast(prisma, tx.id, input.actor);
   return tx;
 }

@@ -145,8 +145,22 @@ export async function forceTxOutcome(
     if (['CONFIRMED', 'FAILED', 'CREDITED', 'REJECTED', 'CANCELLED'].includes(tx.state)) {
       throw conflict('already-terminal', `Transaction is already ${tx.state}`);
     }
+    // A HELD transaction's fate is a compliance officer's decision (release /
+    // reject), never a forced chain outcome — forcing it terminal would strand
+    // the OPEN hold with no resolution and a misleading trail (adversarial gate F4).
+    if (tx.state === 'HELD') {
+      throw conflict('held-not-forceable', 'A held transaction must be resolved via its compliance hold, not forced');
+    }
 
     if (outcome === 'CONFIRMED') {
+      // "CONFIRMED" means settled ON CHAIN, which only a broadcast (already-debited)
+      // withdrawal can reach. Forcing it from any earlier state would confirm money
+      // that never left the wallet (F1); forcing it on a deposit invents a state
+      // deposits never occupy and emits a withdrawal event (F5). Mirror the FAILED
+      // path's `wasDebited` reasoning as an explicit guard.
+      if (tx.type !== 'WITHDRAWAL' || !['BROADCAST', 'PENDING_CONFIRMATION'].includes(tx.state)) {
+        throw conflict('not-broadcast', 'Only a broadcast withdrawal awaiting confirmation can be forced CONFIRMED');
+      }
       const confirmed = await transitionTx(db, tx, 'CONFIRMED', actor);
       await emitEvent(db, 'withdrawal.confirmed', { transactionId: tx.id, forced: true });
       return confirmed;

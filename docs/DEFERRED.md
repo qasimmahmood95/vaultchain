@@ -5,7 +5,7 @@ report. Each was triaged in `PHASE-P1-REPORT.md` §5; revisit at the phase noted
 
 | Ref | Finding (one line) | Revisit |
 |---|---|---|
-| P1 Minor 2 | `forceTxOutcome('CONFIRMED')` can confirm a never-broadcast withdrawal (admin-only simulator escape hatch; physically impossible state, no money impact) — restrict to `PENDING_CONFIRMATION` or document intent | P2 |
+| ~~P1 Minor 2~~ **RESOLVED** | `forceTxOutcome('CONFIRMED')` could confirm a never-broadcast withdrawal — independently re-found by the adversarial gate (F1) and **fixed**: force CONFIRMED now requires a broadcast withdrawal; deposits and HELD txs are refused (F5/F4). See `ADVERSARIAL-GATE-REPORT` remediation. | done (post-gate) |
 | P1 Minor 3 | `attachTravelRule` doesn't require the tx to actually need Travel Rule; spurious records can accumulate on domestic/below-threshold transfers — consider 422 | P2 |
 | P1 Minor 5 | `GET /webhooks/deliveries` ignores `cursor`/`limit` and returns unbounded items (spec-consistent, convention-inconsistent) — paginate or drop the params | P2 |
 | P1 Nit 2 | CLIENT tenant filters use dead `clientId ?? ''` fallback (empty-string sentinel smell) | P2 cleanup |

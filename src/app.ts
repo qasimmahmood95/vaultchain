@@ -26,6 +26,27 @@ export function buildApp(): FastifyInstance {
     done(null, Object.fromEntries(new URLSearchParams(body as string)));
   });
 
+  // Fastify's core JSON parser rejects an EMPTY body (FST_ERR_CTP_EMPTY_JSON_BODY)
+  // with an error that has no `.validation`, so it would fall through to a generic
+  // 500 — breaking the §A.4 "problem+json for every error" contract on the bodyless
+  // POSTs (hold release/reject, withdrawal cancel), which a client sending a default
+  // `Content-Type: application/json` will hit. Parse an empty body as `{}` so those
+  // endpoints succeed and any endpoint that DOES require fields fails as a clean 400
+  // validation problem; malformed JSON is a 400 problem, never a 500. (Adversarial
+  // gate F2.)
+  app.addContentTypeParser('application/json', { parseAs: 'string' }, (_req, body, done) => {
+    const text = (body as string).trim();
+    if (text === '') {
+      done(null, {});
+      return;
+    }
+    try {
+      done(null, JSON.parse(text) as unknown);
+    } catch {
+      done(new ApiProblem(400, 'malformed-json', 'Bad Request', 'Request body is not valid JSON'), undefined);
+    }
+  });
+
   app.addHook('onRequest', authenticate);
 
   // RFC 9457 problem+json for every error shape (PRD §A.4).

@@ -89,3 +89,34 @@ test('the JSON API rejects urlencoded form posts -> 415 (parser is /ui-scoped, D
   });
   expect(res.status()).toBe(415);
 });
+
+test('a bodyless POST with Content-Type: application/json succeeds, never 500 (empty body -> {}, F2)', async ({
+  asOperatorA,
+  build,
+}) => {
+  // The maker's own pending withdrawal; cancel takes no body. A client sending a
+  // default `Content-Type: application/json` with an empty body must not trip the
+  // generic 500 fall-through — the §A.4 problem+json contract, and the endpoint
+  // legitimately needs no fields.
+  const funded = await build.fundedWallet({ asset: 'GBPX', amount: '3000.00' });
+  const dest = await build.activeAddress({ accountId: funded.accountId, asset: 'GBPX' });
+  const wd = await build.withdrawal({ walletId: funded.walletId, amount: '1500.00', address: dest.address });
+
+  const res = await asOperatorA.post(`/withdrawals/${wd.id}/cancel`, {
+    headers: { 'content-type': 'application/json' },
+    data: '',
+  });
+  expect(res.status(), 'empty JSON body must not 500').toBe(200);
+  expect((await res.json() as { state: string }).state).toBe('CANCELLED');
+});
+
+test('a malformed JSON body -> 400 problem+json, never 500 (F2)', async ({ asOperatorA }) => {
+  // Body parsing precedes the route's role check, so a malformed body is a clean
+  // 400 problem regardless of the endpoint's authorization.
+  const res = await asOperatorA.post('/clients', {
+    headers: { 'content-type': 'application/json' },
+    data: '{ not valid json',
+  });
+  expect(res.status()).toBe(400);
+  expect(res.headers()['content-type'] ?? '').toContain('application/problem+json');
+});
