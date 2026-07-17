@@ -1,5 +1,5 @@
 {
-  "$comment": "HAND-AUTHORED perf scenario parameters + regression tolerances (D37). Recorded numbers live in baselines.json (machine-written by `pnpm perf:baseline`). Multipliers are deliberately generous: latency baselines are machine-relative, and only the HARD bounds (5xx, duplicates, invariant) are absolute truths.",
+  "$comment": "HAND-AUTHORED perf scenario parameters + regression tolerances (D37). Recorded numbers live in baselines.json (machine-written by `pnpm perf:baseline`). Multipliers are deliberately generous: latency baselines are machine-relative, and only the HARD bounds (5xx, duplicates, invariant) are absolute truths. Two baseline fields are INFORMATIONAL and gated by nothing: approvalContention.kneeConcurrency (a band across runs, see PERFORMANCE.md) and approvalContention.maxThroughputRps (context for the knee); every other recorded number is consumed by a regression check.",
   "port": 3100,
   "approvalContention": {
     "levels": [2, 4, 8, 16, 32, 64, 128, 256, 512],
@@ -26,6 +26,6 @@
     "durationSec": 10,
     "pageLimit": 50,
     "walkLimit": 100,
-    "regression": { "p95Multiplier": 3, "p99Multiplier": 3 }
+    "regression": { "p95Multiplier": 3, "p99Multiplier": 3, "minThroughputFactor": 0.33 }
   }
 }

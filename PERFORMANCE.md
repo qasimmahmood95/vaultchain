@@ -40,7 +40,9 @@ hiding in prose. Three scenarios, three claims:
   ~500–630 req/s on the recording machine), depending on ambient load. The *stable*
   facts are the shape (throughput saturates, then declines while p95 grows toward the
   transaction-queue timeout) and the correctness bar holding at every level. The recorded
-  `kneeConcurrency` is informational, deliberately not a threshold.
+  `kneeConcurrency` and `maxThroughputRps` are informational, deliberately not
+  thresholds; every other number in `baselines.json` is consumed by a regression check
+  (latency ceilings ×3, throughput floors ×0.33).
 
 ## What the numbers DO mean
 
@@ -67,6 +69,10 @@ pnpm perf                                  # all three scenarios vs committed ba
 pnpm perf -- --scenario=approval-contention
 pnpm perf:baseline                         # re-record baselines on THIS machine
 ```
+
+`perf:baseline` always records **all scenarios together** — a partial re-record is
+refused, because `baselines.json` carries one machine stamp and mixing runs would
+falsify provenance for whichever scenarios weren't re-run.
 
 Each scenario boots its own fresh server (reset → migrate → seed) on port **3100** — it
 will not collide with a Playwright `webServer` on :3000, but it does reset

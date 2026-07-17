@@ -26,6 +26,16 @@ async function main(): Promise<void> {
   const updateBaselines = args.includes('--update-baselines');
   const scenarioArg = args.find((a) => a.startsWith('--scenario='))?.slice('--scenario='.length);
 
+  // Baselines are ONE machine's coherent snapshot (P5 review Minor 4): a
+  // partial re-record would merge fresh numbers under a new recordedAt/
+  // machine stamp while the untouched scenarios keep numbers from somewhere
+  // else — falsifying exactly the provenance PERFORMANCE.md promises.
+  if (updateBaselines && scenarioArg) {
+    console.error('perf:baseline records ALL scenarios together — a partial re-record would falsify machine provenance for the untouched scenarios. Run `pnpm perf:baseline` with no scenario filter.');
+    process.exitCode = 2;
+    return;
+  }
+
   const names = scenarioArg ? [scenarioArg] : Object.keys(SCENARIOS);
   for (const name of names) {
     if (!SCENARIOS[name]) {

@@ -14,7 +14,7 @@ import { RAW_KEYS } from '../../scripts/seed-lib.js';
 import type { PerfConfig, Baselines, ReadTargetBaseline } from '../support/config.js';
 import { seedReadPathScale } from '../support/db.js';
 import { PerfApi } from '../support/http.js';
-import { check, withinMultiple, type Check, type ScenarioOutcome } from '../support/outcome.js';
+import { atLeastFactor, check, withinMultiple, type Check, type ScenarioOutcome } from '../support/outcome.js';
 import { resetDatabase, startServer } from '../support/server.js';
 import { round2, summarize } from '../support/stats.js';
 
@@ -126,6 +126,9 @@ export async function runReadPath(cfg: PerfConfig, baselines: Baselines | null):
         regressionChecks.push(
           withinMultiple(`${run.name} p95`, run.p95Ms, base.p95Ms, c.regression.p95Multiplier, 'ms'),
           withinMultiple(`${run.name} p99`, run.p99Ms, base.p99Ms, c.regression.p99Multiplier ?? c.regression.p95Multiplier, 'ms'),
+          // Recorded rps must be consumed by a check, or its presence in
+          // baselines.json implies gating that doesn't exist (review Minor 2).
+          atLeastFactor(`${run.name} throughput`, run.rps, base.rps, c.regression.minThroughputFactor ?? 0.33, ' req/s'),
         );
       }
     }
