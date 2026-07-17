@@ -246,6 +246,22 @@ trusts the signal.
   report carries traces for UI retries. Build evidence for every phase is committed
   under [`docs/evidence/`](docs/evidence/).
 
+### Contention correctness under load (the perf layer)
+
+The platform's whole correctness story — maker-checker CAS, exactly-once crediting,
+the ledger invariant — is a claim about **concurrency**, so P5 added a perf layer that
+pressure-tests exactly that, at N the functional suites never reach: volleys of up to
+**512 simultaneous approval attempts** on one shared withdrawal (zero 5xx, zero
+duplicate approvals, exactly two winners, and a measured **knee point** where extra
+concurrency stops buying throughput), **60 seconds of sustained mixed load** followed by
+the reconciliation invariant holding on every wallet, and a **read-path p95/p99
+baseline** with cursor paging proven complete and duplicate-free at ~20k rows.
+Thresholds live in [`perf/perf.config.json`](perf/perf.config.json), recorded baselines
+in [`perf/baselines.json`](perf/baselines.json), and `pnpm perf` fails (exit ≠ 0) on any
+hard violation or regression past the envelope. On SQLite behind a single-connection
+pool these are deliberately **not** capacity numbers — [`PERFORMANCE.md`](PERFORMANCE.md)
+says exactly what they do and don't mean, honesty first.
+
 ## 9. Scope & non-goals
 
 **This is a fictional platform.** Names are obviously invented; the fiat rate and
@@ -256,9 +272,11 @@ legal advice. What this repository deliberately **does not** demonstrate:
   "confirmations" are a simulator counter; no signing, keys, or nodes.
 - **No real auth.** API keys only — no passwords, OAuth, sessions, or MFA. The UI
   "login" just exchanges a key for a role cookie.
-- **No production hardening.** No rate-limiting, secrets vaulting, HA, or
-  load/perf work. Security testing is scoped to the authorization matrix and
-  tenant isolation — appropriate for a functional test showcase, not a pentest.
+- **No production hardening.** No rate-limiting, secrets vaulting, or HA. The perf
+  layer (§8, [`PERFORMANCE.md`](PERFORMANCE.md)) proves contention *correctness*, not
+  capacity — no throughput or soak claims are made. Security testing is scoped to the
+  authorization matrix and tenant isolation — appropriate for a functional test
+  showcase, not a pentest.
 - **No third-party integrations.** No real screening vendor, Travel-Rule wire
   protocol, or outbound webhooks — deliveries are recorded locally.
 - **Not a compliance product.** The regulatory logic is generic-realistic for
