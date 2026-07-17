@@ -88,9 +88,15 @@ function assertConfig(cfg: PerfConfig): void {
   const ac = cfg.approvalContention;
   if (ac.levels.length === 0) fail('approvalContention.levels must not be empty');
   if (ac.attemptsPerApprover < 1) fail('approvalContention.attemptsPerApprover must be >= 1');
-  for (const level of ac.levels) {
+  for (const [i, level] of ac.levels.entries()) {
     if (level < 1 || level % ac.attemptsPerApprover !== 0) {
       fail(`approvalContention.levels entry ${level} must be a positive multiple of attemptsPerApprover (${ac.attemptsPerApprover})`);
+    }
+    // Strictly ascending: the knee/saturation report assumes the last level
+    // is the highest explored concurrency (re-review nit 2).
+    const prev = ac.levels[i - 1];
+    if (i > 0 && prev !== undefined && level <= prev) {
+      fail(`approvalContention.levels must be strictly ascending (${prev} then ${level})`);
     }
   }
   if (!ac.levels.includes(ac.referenceLevel)) {

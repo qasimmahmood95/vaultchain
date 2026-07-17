@@ -92,6 +92,11 @@ export async function checkExactlyOnce(
     _count: { _all: true },
   });
   for (const g of events) {
+    // On main this count>1 leg is guaranteed by the @@unique([walletId,
+    // chainTxRef]) constraint and cannot fail — it is a tripwire for a world
+    // where that constraint is dropped, NOT independent verification here
+    // (re-review nit 3). The falsifiable teeth of this sweep are the
+    // ledger-row counts and the CREDITED-implies-claim presence check below.
     if (g._count._all !== 1) problems.push(`processed event (${g.walletId}, ${g.chainTxRef}): ${g._count._all} rows`);
   }
   const eventKeys = new Set(events.map((g) => `${g.walletId}|${g.chainTxRef}`));

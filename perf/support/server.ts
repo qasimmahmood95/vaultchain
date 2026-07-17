@@ -86,7 +86,10 @@ export async function startServer(port: number): Promise<PerfServer> {
       throw new Error(`perf server exited before ready (code ${child.exitCode}):\n${stderrTail.join('')}`);
     }
     try {
-      const res = await fetch(`${baseUrl}/health`);
+      // Bounded like every other fetch in this layer: a child that accepts
+      // the connection but never responds must trip the 60s deadline, not
+      // pin the poll on undici's default header timeout (re-review nit 1).
+      const res = await fetch(`${baseUrl}/health`, { signal: AbortSignal.timeout(2_000) });
       if (res.ok) break;
     } catch {
       // not up yet

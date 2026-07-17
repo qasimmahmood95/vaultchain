@@ -261,4 +261,17 @@ supersedes §6's "nothing applied"):
 functional pipeline **237 green** (exit-code gated); **`pnpm perf` PASSED** with all new
 hard checks and the throughput floors live against the unchanged committed baselines;
 both refusal paths exercised for real (partial re-record → exit 2; invalid config →
-loud error, exit 1). Defect-branch resync and a fresh-context re-review follow below.
+loud error, exit 1).
+
+**Fresh-context RE-REVIEW** (same charter, new agent; it ran typecheck/lint/237
+suite/`pnpm perf` itself, plus live probes of all three refusal/guard paths and a
+`findKnee` unit probe): **all nine fixes verified CLOSED** — including confirming the
+exactly-once sweep has real teeth (`LedgerEntry` carries no unique constraint, so a
+duplicate row genuinely fails it) — and **0 Critical / 0 Major / 0 Minor new findings**.
+Three residual nits from the re-review were fixed on the spot and re-verified green
+(full `pnpm perf` PASS): the readiness poll's fetch is now bounded like every other
+fetch in the layer (2s); `assertConfig` requires strictly ascending levels (the
+knee/saturation report assumes the last level is the highest); the sweep's
+ProcessedEvent count>1 leg is commented as a constraint-guaranteed tripwire, not
+independent verification. Defect branch resynced after each batch — the **12-failure
+map verified unchanged both times**, `v1-defects` re-anchored.
