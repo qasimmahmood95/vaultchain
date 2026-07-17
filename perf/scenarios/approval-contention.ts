@@ -121,7 +121,9 @@ export async function runApprovalContention(cfg: PerfConfig, baselines: Baseline
       const knee = findKnee(points);
       const maxThroughput = Math.max(...points.map((p) => p.throughputRps));
       summaryLines.push(
-        `knee point: concurrency ${knee} (first level reaching >=90% of max throughput ${maxThroughput} rps — beyond it, added concurrency buys queue depth, not throughput)`,
+        knee.saturated
+          ? `knee point: concurrency ${knee.concurrency} (first level reaching >=90% of max throughput ${maxThroughput} rps — beyond it, added concurrency buys queue depth, not throughput)`
+          : `knee NOT reached: throughput was still climbing at the envelope edge (concurrency ${knee.concurrency}, ${maxThroughput} rps) — the recorded value is the edge, not a saturation point`,
       );
 
       // -- DB truth: no approver ever recorded two decisions on one withdrawal.
@@ -171,7 +173,7 @@ export async function runApprovalContention(cfg: PerfConfig, baselines: Baseline
         baselinePatch: {
           approvalContention: {
             p95MsAtReferenceLevel: p95AtReference,
-            kneeConcurrency: knee,
+            kneeConcurrency: knee.concurrency,
             maxThroughputRps: maxThroughput,
           },
         },

@@ -111,6 +111,9 @@ export async function runReconciliationLoad(cfg: PerfConfig, baselines: Baseline
     const fiveXX = samples.filter((s) => s.status >= 500).length;
     const unexpected = samples.filter((s) => s.status < 500 && s.status !== EXPECTED_STATUS[s.op]).length;
     const overall = summarize(samples.map((s) => s.ms));
+    const missingOps = (['deposit', 'advance', 'withdraw', 'approve'] as OpKind[]).filter(
+      (op) => !samples.some((s) => s.op === op),
+    );
 
     const summaryLines: string[] = [
       `duration ${round2(elapsedSec)}s  workers ${c.workers}  requests ${total}  throughput ${rps} req/s`,
@@ -141,6 +144,14 @@ export async function runReconciliationLoad(cfg: PerfConfig, baselines: Baseline
       ),
       check('no 5xx under sustained load', fiveXX === 0, `${fiveXX} responses >= 500 of ${total}`),
       check('no unexpected statuses', unexpected === 0, `${unexpected} responses off the designed happy path`),
+      // "Mixed load" must actually be mixed (P5 review nit 3): a depositShare
+      // edit or an rng regression silently dropping an op kind would otherwise
+      // hollow the scenario out while staying green.
+      check(
+        'every op kind exercised',
+        missingOps.length === 0,
+        missingOps.length === 0 ? 'deposit, advance, withdraw, approve all ran' : `never ran: ${missingOps.join(', ')}`,
+      ),
     ];
 
     const regressionChecks: Check[] = [];

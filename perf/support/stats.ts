@@ -43,18 +43,34 @@ export interface LevelPoint {
   throughputRps: number;
 }
 
+export interface KneeResult {
+  concurrency: number;
+  /**
+   * True only when the knee sits BELOW the highest explored level — i.e. the
+   * curve demonstrably flattened inside the envelope. When the first level to
+   * reach 90% of max IS the last level, throughput was still climbing and the
+   * reported concurrency is just the envelope edge, not a knee (P5 review
+   * nit 1: the summary must not claim saturation it didn't observe).
+   */
+  saturated: boolean;
+}
+
 /**
  * Knee point: the SMALLEST concurrency whose throughput reaches >= 90% of the
  * maximum observed throughput. With writes serialized behind one SQLite
  * connection (D35), throughput saturates at ~1/service-time while latency
  * keeps growing linearly with queue depth — the saturation onset is the knee.
  */
-export function findKnee(points: readonly LevelPoint[]): number {
+export function findKnee(points: readonly LevelPoint[]): KneeResult {
+  const last = points[points.length - 1];
+  if (!last) return { concurrency: 0, saturated: false };
   const max = Math.max(...points.map((p) => p.throughputRps));
   for (const p of points) {
-    if (p.throughputRps >= 0.9 * max) return p.concurrency;
+    if (p.throughputRps >= 0.9 * max) {
+      return { concurrency: p.concurrency, saturated: p.concurrency !== last.concurrency };
+    }
   }
-  return points[points.length - 1]?.concurrency ?? 0;
+  return { concurrency: last.concurrency, saturated: false };
 }
 
 export function round2(n: number): number {

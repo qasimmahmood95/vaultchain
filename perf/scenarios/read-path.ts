@@ -50,7 +50,11 @@ export async function runReadPath(cfg: PerfConfig, baselines: Baselines | null):
     let duplicates = 0;
     let pages = 0;
     let deepCursor: string | null = null;
-    const expectedPages = Math.ceil(expectedWithdrawals / c.walkLimit);
+    // Derived from the FIRST response's actual item count, not from walkLimit:
+    // the server clamps `limit` (pageArgs caps at 100), so trusting the config
+    // value would turn a clamped page size into a false "did not terminate"
+    // (P5 review nit 4).
+    let expectedPages = 0;
     let cursor: string | null = null;
     for (;;) {
       const path: string = `/withdrawals?limit=${c.walkLimit}${cursor ? `&cursor=${cursor}` : ''}`;
@@ -58,11 +62,15 @@ export async function runReadPath(cfg: PerfConfig, baselines: Baselines | null):
       if (res.status !== 200) throw new Error(`cursor walk: ${res.status} at page ${pages}`);
       const body = res.json as { items: { id: string }[]; nextCursor: string | null };
       pages += 1;
+      if (pages === 1) {
+        if (body.items.length === 0) throw new Error('cursor walk: first page came back empty');
+        expectedPages = Math.ceil(expectedWithdrawals / body.items.length);
+      }
       for (const item of body.items) {
         if (seen.has(item.id)) duplicates += 1;
         seen.add(item.id);
       }
-      if (pages === Math.floor(expectedPages / 2)) deepCursor = body.nextCursor;
+      if (pages === Math.max(1, Math.floor(expectedPages / 2))) deepCursor = body.nextCursor;
       if (body.nextCursor === null) break;
       cursor = body.nextCursor;
       if (pages > expectedPages + 5) throw new Error('cursor walk: chain did not terminate');
