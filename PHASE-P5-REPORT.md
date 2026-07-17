@@ -232,3 +232,33 @@ cat docs/evidence/p5.txt                         # the committed run + knee anal
 **STOP after P5.** Owner actions on the table: the §6 triage decisions (chiefly Major 1's
 exactly-once sweep) and pushing `main` + `defects-planted` + the re-anchored `v1-defects`
 to origin.
+
+## Post-report: triage applied — ALL findings fixed (owner instruction)
+
+The owner commissioned all nine findings, in the order Nits → Major → Minors (this
+supersedes §6's "nothing applied"):
+
+- **Nits 1–4 FIXED** (`868a586`): `findKnee` reports saturation status and the summary no
+  longer claims a knee on a still-climbing curve; `PerfApi` requests carry a 30s
+  `AbortSignal` (a wedged server fails the run, never hangs it); the reconciliation
+  scenario hard-checks every op kind actually ran; the cursor walk derives its page math
+  from the first response's ACTUAL page size, decoupled from the server's limit clamp.
+- **Major 1 FIXED** (`0124cfb`): `checkExactlyOnce` sweep after the 60s window — exactly
+  one PRINCIPAL CREDIT + one ProcessedEvent per credited deposit, exactly one PRINCIPAL +
+  one FEE DEBIT per debited withdrawal — as a hard check, closing the consistent-
+  double-settlement blindspot; the scenario header and PERFORMANCE.md no longer oversell
+  the invariant. Live: **exactly-once HOLDS over 499 credited deposits + 340 debited
+  withdrawals**.
+- **Minors 1–4 FIXED** (`dac6188`): `loadConfig` validates config invariants loudly at
+  load (incl. the referenceLevel-disarm hole and the walkLimit/pageLimit server clamp);
+  read-path throughput floor-gated per target (`minThroughputFactor` 0.33) with the two
+  remaining informational baseline fields declared as such; `startServer` pre-flight
+  refuses to adopt a stray server on :3100 and spawned children are reaped on
+  SIGINT/SIGTERM/exit; `perf:baseline` refuses partial re-records (one machine, one
+  coherent snapshot).
+
+**Gate re-run after the fixes** (addendum in `docs/evidence/p5.txt`): typecheck + lint 0;
+functional pipeline **237 green** (exit-code gated); **`pnpm perf` PASSED** with all new
+hard checks and the throughput floors live against the unchanged committed baselines;
+both refusal paths exercised for real (partial re-record → exit 2; invalid config →
+loud error, exit 1). Defect-branch resync and a fresh-context re-review follow below.

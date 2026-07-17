@@ -133,3 +133,101 @@ The table above is a textbook single-server queue saturating:
     — nor in any other perf run captured this session.
 
 === END P5 EVIDENCE ===
+
+==========================================================
+POST-TRIAGE ADDENDUM — all review findings fixed (1 Major, 4 Minor, 4 Nit)
+captured: 2026-07-17T01:42:16Z  HEAD: dac6188
+==========================================================
+
+----- typecheck + lint -----
+$ tsc --noEmit
+$ eslint . && markdownlint-cli2
+markdownlint-cli2 v0.23.0 (markdownlint v0.41.0)
+Finding: **/*.md !.claude/agents/code-reviewer.md !.claude/agents/adversarial-auditor.md
+Linting: 18 file(s)
+Summary: 0 error(s)
+typecheck+lint exit=0
+
+----- full functional pipeline (fresh DB; exit-code gated) -----
+  ok 237 [compliance] › tests\compliance\travel-rule.spec.ts:111:1 › T+1: 1000.01 cross-VASP is gated identically — record required before broadcast @compliance (238ms)
+
+  237 passed (38.0s)
+pipeline exit=0
+
+----- perf: full run vs committed baselines, post-triage (new checks live: exactly-once sweep, op-mix presence, read-path throughput floors) -----
+$ tsx perf/run.ts
+
+=== perf: approval-contention ===
+  level  approvers  reps  p95 ms    p99 ms    median wall ms  throughput rps  statuses
+  2      1          3     26.89     26.89     13.52           147.89          201x3 409x3
+  4      2          3     66.54     66.54     62.12           64.39           201x6 409x6
+  8      4          3     65.87     68.55     66.23           120.8           201x6 409x18
+  16     8          3     65.89     75.78     74.59           214.51          201x6 409x42
+  32     16         3     67.69     95.57     92.27           346.81          201x6 409x90
+  64     32         3     122.05    151.17    151.59          422.19          201x6 409x186
+  128    64         3     229.07    242.72    237.15          539.74          201x6 409x378
+  256    128        3     405.68    432.38    439.78          582.11          201x6 409x762
+  512    256        3     779.83    832.28    806.25          635.04          201x6 409x1530
+  knee point: concurrency 256 (first level reaching >=90% of max throughput 635.04 rps — beyond it, added concurrency buys queue depth, not throughput)
+  -- hard checks
+  [PASS] no 5xx under contention: 0 responses >= 500
+  [PASS] losers get designed statuses (201/409 only): 0 responses outside {201, 409}
+  [PASS] no duplicate approvals (DB sweep): 0 (transactionId, approver) pairs with >1 row
+  [PASS] per-volley state machine correct: every volley: exact winner count, distinct approvers, expected final state
+  -- regression checks (vs committed baselines)
+  [PASS] p95 at concurrency 16: 65.89ms vs baseline 89.59ms (allowed <= 268.77ms)
+
+=== perf: reconciliation-under-load ===
+  duration 60.26s  workers 8  requests 1726  throughput 28.64 req/s
+  op        count   p50 ms    p95 ms    p99 ms    max ms
+  deposit   516     246.62    287.65    310.83    325.62
+  advance   516     449.61    622.25    684.97    724.1
+  withdraw  347     149.39    184.16    196.51    206.61
+  approve   347     203.3     243.49    258.54    262.5
+  overall: p50 237.18ms  p95 551.42ms  p99 648.43ms
+  invariant: HOLDS across 56 wallets
+  exactly-once: HOLDS over 524 credited deposits + 347 debited withdrawals
+  -- hard checks
+  [PASS] reconciliation invariant holds after load: Σ(ledger) == balance for all 56 wallets
+  [PASS] ledger trail is exactly-once: 1 credit + 1 ProcessedEvent per credited deposit (524); 1 principal + 1 fee debit per debited withdrawal (347)
+  [PASS] no 5xx under sustained load: 0 responses >= 500 of 1726
+  [PASS] no unexpected statuses: 0 responses off the designed happy path
+  [PASS] every op kind exercised: deposit, advance, withdraw, approve all ran
+  -- regression checks (vs committed baselines)
+  [PASS] overall p95: 551.42ms vs baseline 594.57ms (allowed <= 1783.71ms)
+  [PASS] throughput: 28.64 req/s vs baseline 26.76 req/s (allowed >= 8.83 req/s)
+
+=== perf: read-path-baseline ===
+  data volume: 20093 withdrawals (+20000 scale deposits, + the standard seed)
+  cursor walk: 201 pages of 100 -> 20093/20093 rows, 0 duplicates
+  target                    req/s     p50 ms    p95 ms    p99 ms    non-2xx
+  withdrawals-first-page    560.5     17.78     19.67     20.68     0
+  withdrawals-deep-page     554.3     17.98     19.54     20.92     0
+  audit-first-page          839.9     11.94     12.87     13.87     0
+  -- hard checks
+  [PASS] cursor paging correct at volume: 20093/20093 unique rows over 201 pages, 0 duplicates
+  [PASS] all load responses 2xx: 0 non-2xx responses
+  [PASS] no socket errors/timeouts: 0 autocannon errors
+  -- regression checks (vs committed baselines)
+  [PASS] withdrawals-first-page p95: 19.67ms vs baseline 20.22ms (allowed <= 60.66ms)
+  [PASS] withdrawals-first-page p99: 20.68ms vs baseline 22.36ms (allowed <= 67.08ms)
+  [PASS] withdrawals-first-page throughput: 560.5 req/s vs baseline 547.9 req/s (allowed >= 180.81 req/s)
+  [PASS] withdrawals-deep-page p95: 19.54ms vs baseline 20.51ms (allowed <= 61.53ms)
+  [PASS] withdrawals-deep-page p99: 20.92ms vs baseline 22.13ms (allowed <= 66.39ms)
+  [PASS] withdrawals-deep-page throughput: 554.3 req/s vs baseline 536.1 req/s (allowed >= 176.91 req/s)
+  [PASS] audit-first-page p95: 12.87ms vs baseline 13.23ms (allowed <= 39.69ms)
+  [PASS] audit-first-page p99: 13.87ms vs baseline 14.18ms (allowed <= 42.54ms)
+  [PASS] audit-first-page throughput: 839.9 req/s vs baseline 821.19 req/s (allowed >= 270.99 req/s)
+
+== PERF PASSED ==
+perf exit=0
+
+----- refusal paths (review Minors 1+4) -----
+perf:baseline records ALL scenarios together — a partial re-record would falsify machine provenance for the untouched scenarios. Run `pnpm perf:baseline` with no scenario filter.
+[ELIFECYCLE] Command failed with exit code 2.
+partial baseline re-record refused, exit=2
+Error: perf.config.json invalid: approvalContention.referenceLevel 7 is not in levels — the p95 regression gate would silently disarm
+invalid config (referenceLevel not in levels) rejected at load, exit=1 (re-verified un-piped; the piped capture above clobbered PIPESTATUS)
+config restored: clean vs HEAD
+
+=== END POST-TRIAGE ADDENDUM ===
