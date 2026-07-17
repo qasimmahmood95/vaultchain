@@ -69,8 +69,9 @@ export default tseslint.config(
     },
   },
   {
-    // The reporter and simulator emit human-readable output on stdout by design.
-    files: ['reporters/**/*.ts', 'scripts/**/*.ts'],
+    // The reporter, scripts, and perf runner emit human-readable output on
+    // stdout by design.
+    files: ['reporters/**/*.ts', 'scripts/**/*.ts', 'perf/**/*.ts'],
     rules: { 'no-console': 'off' },
   },
 );
