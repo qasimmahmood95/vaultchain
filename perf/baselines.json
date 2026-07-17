@@ -1,0 +1,34 @@
+{
+  "approvalContention": {
+    "p95MsAtReferenceLevel": 89.59,
+    "kneeConcurrency": 128,
+    "maxThroughputRps": 498.5
+  },
+  "recordedAt": "2026-07-17T00:52:13.168Z",
+  "machine": {
+    "node": "v26.5.0",
+    "platform": "win32 10.0.26200",
+    "cpus": 12
+  },
+  "reconciliationLoad": {
+    "requestsPerSec": 26.76,
+    "p95Ms": 594.57
+  },
+  "readPath": {
+    "withdrawals-first-page": {
+      "p95Ms": 20.22,
+      "p99Ms": 22.36,
+      "rps": 547.9
+    },
+    "withdrawals-deep-page": {
+      "p95Ms": 20.51,
+      "p99Ms": 22.13,
+      "rps": 536.1
+    },
+    "audit-first-page": {
+      "p95Ms": 13.23,
+      "p99Ms": 14.18,
+      "rps": 821.19
+    }
+  }
+}
